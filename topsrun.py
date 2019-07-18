@@ -20,6 +20,9 @@ options = dict(
     orbit ='/Users/mistral/Documents/CUBoulder/',
     auxiliary ='/Users/mistral/Documents/',
     unwrapper ='snaphu_mcf',
+    dem = '/Users/mistral/Documents/CUBoulder/',
+    roi = [35.7622, 35.9909,-121.5001,-121.3209],
+    bbox = [35.7622, 35.9909,-121.5001,-121.3209],
     az_looks = 3,
     rng_looks =7
     )
