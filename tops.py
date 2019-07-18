@@ -49,7 +49,6 @@ class Pair(object):
                 dict(name='orbit directory', __text__=self.orbit),
                 dict(name='auxiliary data directory', __text__=self.auxiliary),
                 dict(name='safe', __text__=self.master),
-                dict(name='swath number', __text__=str(self.swaths)),
                 dict(name='output directory', __text__='master')]
             )
         slave = dict(
@@ -58,11 +57,12 @@ class Pair(object):
                 dict(name='orbit directory', __text__=self.orbit),
                 dict(name='auxiliary data directory', __text__=self.auxiliary),
                 dict(name='safe', __text__=self.slave),
-                dict(name='swath number', __text__=str(self.swaths)),
                 dict(name='output directory', __text__='slave')]
             )
         properties = [
-            dict(name='Sensor name', __text__=self.sensor)
+            dict(name='Sensor name', __text__=self.sensor),
+            dict(name='do unwrap', __text__=str(self.unwrap)),
+            dict(name='swaths', __text__=str(self.swaths))
         ]
         if self.az_looks:
             properties.append(dict(
