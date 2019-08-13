@@ -62,7 +62,8 @@ class Pair(object):
         properties = [
             dict(name='Sensor name', __text__=self.sensor),
             dict(name='do unwrap', __text__=str(self.unwrap)),
-            dict(name='swaths', __text__=str(self.swaths))
+            dict(name='swaths', __text__=str(self.swaths)),
+            dict(name='unwrapper name', __text__=str(self.unwrapper))
         ]
         if self.az_looks:
             properties.append(dict(
