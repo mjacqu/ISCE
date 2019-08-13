@@ -1,4 +1,4 @@
 # ISCE
 Code associated with radar processing software ISCE
 
-topsrun.py: batch process radar data with JPL ISCE software with either defined maximum time between acquisitions, a single master, pairing all acquisitions. 
+topsrun.py: batch process radar data with JPL software ISCE. Can define either a maximum time step between acquisitions to be paired, a single master that gets paired with all other acquisitions, or pairing all acquisitions (N x N). 
