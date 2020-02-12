@@ -2,36 +2,43 @@ import os
 import glob
 import re
 
-def make_png_kml(type):
+def make_png_kml(data, type):
     """ 
     Turn ISCE coherence or amplitude/phase images into png (with associated kml) or geotiff. 
 
     Parameter:
-    type (str): tiff, coherence or amp_phase
+    data (str): amp_phase or coherence
+    type (str): tiff or png
+
 
     Returns:
-    if type is amplitude_tiff: 2 channel tiff with amplitude and phase
-    if type is coherence or amp_phase: png + kml
+    if type is tiff: 2 channel tiff with amplitude and phase or 1 channel tiff with coherence
+    if type is png: png with coherence or amplitude filtered phase plus corresponding kml 
 
     """
-	all_directories = os.walk('.').next()[1]# list of all current directories
-	regex = re.compile(r'\d{8}_\d{8}')
-	directories = list(filter(regex.search, all_directories))
-	for i in range(0,len(directories)):
+    all_directories = os.walk('.').next()[1]# list of all current directories
+    regex = re.compile(r'\d{8}_\d{8}')
+    directories = list(filter(regex.search, all_directories))
+    for i in range(0,len(directories)):
             if type == "tiff":
                 print(type)
-                filename = os.path.join(directories[i],"merged/filt_topophase.unw.geo.vrt")
-                command = "gdal_translate " + filename + " " +os.path.join(directories[i],directories[i]+'.amp.geo.tif')
+                if data == "amp_phase":
+                    f = "merged/filt_topophase.unw.geo.vrt"
+                if data == "coherence":
+                    f = "merged/phsig.cor.geo.vrt"
+                print(data)
+                filename = os.path.join(directories[i],f)
+                command = "gdal_translate " + filename + " " + os.path.join(directories[i],directories[i] + data + '.tif')
                 #print(command)
                 os.system(command)
             else:
-                if type == "coherence":
-                    print(type)
+                if data == "coherence":
+                    print(data)
                     filename = os.path.join(directories[i], "merged/phsig.cor.geo")
                     rename = "phsig.cor.geo.png"
                     #print(filename, rename)
-                if type == "amp_phase":
-                    print(type)
+                if data == "amp_phase":
+                    print(data)
                     filename =os.path.join(directories[i], "merged/filt_topophase.unw.geo")
                     rename = "filt_topophase.unw.geo.png"
                 command = "mdx.py " + filename + " -kml " + directories[i] + ".kml"
@@ -45,13 +52,13 @@ def make_png_kml(type):
                     # Write the file out again
                 with open(directories[i]+".kml", 'w') as file:
                     file.write(filedata)
-                os.rename(rename, os.path.join(directories[i],directories[i]+"_"+ type +".png")) # rename file
-                os.rename(directories[i]+".kml", os.path.join(directories[i],directories[i]+"_"+ type + ".kml")) # move xml to directory
+                os.rename(rename, os.path.join(directories[i],directories[i]+"_"+ data +".png")) # rename file
+                os.rename(directories[i]+".kml", os.path.join(directories[i],directories[i]+"_"+ data + ".kml")) # move xml to directory
 
 
 
 
 #make_png_kml("coherence")
-make_png_kml("tiff")
+make_png_kml("coherence","tiff")
 
 
