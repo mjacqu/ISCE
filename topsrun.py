@@ -2,6 +2,7 @@ import tops
 import numpy as np
 import glob
 import datetime
+import os
 
 '''
 Example for usage of tops.Pair() and .run() to create topsApp xml files and run
@@ -30,4 +31,7 @@ options = dict(
 pairs = tops.makepairs(path=data_path, maxdelta = maxdelta, options=options)
 
 for pair in pairs:
-    pair.run()
+    if os.path.isdir(str(pair.path)) == True:
+        print(str(pair.path) + ' exists, skipping')
+    else:
+        pair.run(overwrite=False)
