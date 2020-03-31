@@ -185,19 +185,26 @@ def d2xml(d):
     _d2xml(d[key], root)
     return root
 
+# def csv_to_datelist(file_name):
+#     list_of_dates = pd.read_csv(file_name, delimiter = ',', header = None).to_numpy()
+#     #timestamps = pd.to_datetime(dates.stack(), format = '%Y%m%d').unstack()
+#     #list_of_dates = [tuple(row) for row in dates.values]
+#     return list_of_dates
 
-def makepairs(path, maxdelta=None, singlemaster=None, options=dict()):
+def make_pairs(path, maxdelta=None, singlemaster=None, dates=None, options=dict()):
     """
     Returns an array of Pair objects to pass to run().
 
     Arguments:
-    paths (str) = path to raw data directory with zipped safe files
+    path (str) = path to raw data directory with zipped safe files
     maxdelta (datetime.timedelta) = Maximum time delta between paired acquisition
                         dates. Default is None, which will pair N to N files.
     singlemaster (datetime.datetime) = date to use as single master
+    dates (list of datetime.datetime tuples) = pass specific pairs of dates to process.
     options (dict) = see Pair() class definition for details
     """
     def make_pair(first, second):
+        first, second = np.atleast_1d(first), np.atleast_1d(second)
         pairs = []
         for i, j in zip(first, second):
             if datetimes[i] > datetimes[j]:
@@ -207,16 +214,35 @@ def makepairs(path, maxdelta=None, singlemaster=None, options=dict()):
 
     paths = glob.glob(os.path.join(path, "S1*.zip"))
     datetimes = np.asarray([safe2date(i) for i in paths])
-    if maxdelta is not None and singlemaster is not None:
-        raise ValueError('Maxdelta or Singlemaster must be None')
+    #check keywords:
+    count = 0
+    if maxdelta is not None:
+        count += 1
+    if singlemaster is not None:
+        count += 1
+    if dates is not None:
+        count += 1
+    if count > 1:
+        raise ValueError('Chose only one of maxdelta, singlemaster, or dates')
+    # make pairs from dates
+    if dates is not None:
+        datetimes_str = [d.strftime('%Y%m%d') for d in datetimes]
+        pairs = []
+        for first, second in dates:
+            first, second = datetimes_str.index(first), datetimes_str.index(second)
+            pairs.extend(make_pair(first, second))
+    return [Pair(master=m, slave=s, **options) for m, s in pairs]
+    # make pairs with maxdelta
     if maxdelta is None:
         matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) >= abs(datetime.timedelta(days=0))
         first, second = np.where(np.triu(matches, k=1))
-        pairs = make_pair(first,second)
+        pairs = make_pair(first, second)
     else:
         matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) <= abs(maxdelta)
         first, second = np.where(np.triu(matches, k=1))
         pairs = make_pair(first, second)
+    return [Pair(master=m, slave=s, **options) for m, s in pairs]
+    #make pairs with singlemaster
     if singlemaster is not None:
         filter = [d.date() == singlemaster.date() for d in datetimes]
         master = list(itertools.compress(paths, filter))
