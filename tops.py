@@ -200,7 +200,7 @@ def make_pairs(path, maxdelta=None, singlemaster=None, dates=None, options=dict(
     maxdelta (datetime.timedelta) = Maximum time delta between paired acquisition
                         dates. Default is None, which will pair N to N files.
     singlemaster (datetime.datetime) = date to use as single master
-    dates (list of datetime.datetime tuples) = pass specific pairs of dates to process.
+    dates (tuple of datetime.datetime tuples) = pass specific pairs of dates to process.
     options (dict) = see Pair() class definition for details
     """
     def make_pair(first, second):
