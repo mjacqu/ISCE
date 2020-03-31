@@ -10,8 +10,11 @@ isce with 'topsApp.py --steps'.
 Use help(tops.Pair) and help(tops.makepairs) for details.
 '''
 
-data_path = '/Users/mistral/Documents/CUBoulder/Science/gernika/isce_tools/test'
-maxdelta = datetime.timedelta(days = 19)
+data_path = '.'
+dates = (
+    ('20160822', '20160915'),
+    ('20170113', '20160927'))
+#maxdelta = datetime.timedelta(days = 48)
 #singlemaster = datetime.datetime(2017, 5, 7)
 
 # set dict with all attributes of pair:
@@ -28,7 +31,16 @@ options = dict(
     rng_looks =7
     )
 
-pairs = tops.makepairs(path=data_path, maxdelta = maxdelta, options=options)
+# Example 1: run with maxdelta
+#pairs = tops.makepairs(path=data_path, maxdelta = maxdelta, options=options)
+
+# Example 2: runt with dates
+pairs = tops.make_pairs(path = data_path, dates = dates, options = options)
+
+'''
+for pair in pairs:
+    print(pair.path)
+'''
 
 for pair in pairs:
     if os.path.isdir(str(pair.path)) == True:
