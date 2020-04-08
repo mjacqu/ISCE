@@ -42,6 +42,27 @@ class Pair(object):
         self.bbox = bbox
         self.sensor = sensor
 
+    @classmethod
+    def from_path(cls, path):
+        xml_fn = 'topsApp.xml'
+        root = etree.parse(os.path.join(path,xml_fn)).getroot()
+        return cls(
+            master = root.xpath('component[@name="topsinsar"]/component[@name="master"]/property[@name="safe"]')[0].text,
+            slave = root.xpath('component[@name="topsinsar"]/component[@name="slave"]/property[@name="safe"]')[0].text,
+            swaths = root.xpath('component[@name="topsinsar"]/property[@name="swaths"]')[0].text,
+            orbit = root.xpath('component[@name="topsinsar"]/component[@name="master"]/property[@name="orbit directory"]')[0].text,
+            auxiliary = root.xpath('component[@name="topsinsar"]/component[@name="master"]/property[@name="auxiliary data directory"]')[0].text,
+            path = path,
+            unwrapper = root.xpath('component[@name="topsinsar"]/property[@name="unwrapper name"]')[0].text,
+            unwrap = root.xpath('component[@name="topsinsar"]/property[@name="do unwrap"]')[0].text,
+            az_looks = root.xpath('component[@name="topsinsar"]/property[@name="azimuth looks"]')[0].text,
+            rng_looks = root.xpath('component[@name="topsinsar"]/property[@name="range looks"]')[0].text,
+            dem = root.xpath('component[@name="topsinsar"]/property[@name="demfilename"]')[0].text,
+            roi = root.xpath('component[@name="topsinsar"]/property[@name="region of interest"]')[0].text,
+            bbox = root.xpath('component[@name="topsinsar"]/property[@name="geocode bounding box"]')[0].text,
+            sensor = root.xpath('component[@name="topsinsar"]/property[@name="Sensor name"]')[0].text
+        )
+
     def as_xml(self):
         master = dict(
             name='master',
