@@ -1,3 +1,5 @@
+import sys
+sys.path.append('/home/myja3483/isce_tools/ISCE')
 import tops
 import numpy as np
 import glob
@@ -49,4 +51,4 @@ for pair in pairs:
         pair.run(overwrite=False)
 
 #Reverse operation: make Pair objects from path to YYYYMMDD_YYYYMMDD directory
-tops.Pair.from_path('/net/tiampostorage/volume1/MyleneShare/Bigsur_desc/az1rng2/20170113_20170302')
+pair = tops.Pair.from_path('/net/tiampostorage/volume1/MyleneShare/Bigsur_desc/az1rng2/20170113_20170302')
