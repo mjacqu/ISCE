@@ -1,5 +1,5 @@
-import sys
-sys.path.append('/home/myja3483/isce_tools/ISCE')
+#import sys
+#sys.path.append('/home/myja3483/isce_tools/ISCE')
 import tops
 import numpy as np
 import glob
