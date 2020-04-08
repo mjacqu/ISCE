@@ -131,14 +131,17 @@ class Pair(object):
         os.system('topsApp.py --steps')
         os.chdir(original_dir)
 
+    def check_process(self):
+        check = os.path.exists(os.path.join(self.path,'merged'))
+        return check
+        #if check == True:
+        #    print(os.path.basename(self.path) + ' processed')
+        #else:
+        #    print(os.path.basename(self.path) + ' failed')
+
     def ls(self):
         pass
 
-    @classmethod
-    def load(cls, path):
-        # Parse xml file
-        # Call __init__()
-        pass
 
 # ---- Helpers ----
 
