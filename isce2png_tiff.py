@@ -16,7 +16,7 @@ def make_png_kml(data, type):
     if type is png: png with coherence or amplitude filtered phase plus corresponding kml 
 
     """
-    all_directories = os.walk('.').next()[1]# list of all current directories
+    all_directories = os.listdir()# list of all current directories
     regex = re.compile(r'\d{8}_\d{8}')
     directories = list(filter(regex.search, all_directories))
     for i in range(0,len(directories)):
@@ -59,6 +59,6 @@ def make_png_kml(data, type):
 
 
 #make_png_kml("coherence")
-make_png_kml("coherence","tiff")
+make_png_kml("amp_phase","tiff")
 
 
