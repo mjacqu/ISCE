@@ -52,7 +52,7 @@ class Pair(object):
             swaths = root.xpath('component[@name="topsinsar"]/property[@name="swaths"]')[0].text,
             orbit = root.xpath('component[@name="topsinsar"]/component[@name="master"]/property[@name="orbit directory"]')[0].text,
             auxiliary = root.xpath('component[@name="topsinsar"]/component[@name="master"]/property[@name="auxiliary data directory"]')[0].text,
-            path = path,
+            path = os.path.dirname(path),
             unwrapper = root.xpath('component[@name="topsinsar"]/property[@name="unwrapper name"]')[0].text,
             unwrap = root.xpath('component[@name="topsinsar"]/property[@name="do unwrap"]')[0].text,
             az_looks = root.xpath('component[@name="topsinsar"]/property[@name="azimuth looks"]')[0].text,
