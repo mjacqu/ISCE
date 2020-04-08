@@ -47,3 +47,6 @@ for pair in pairs:
         print(str(pair.path) + ' exists, skipping')
     else:
         pair.run(overwrite=False)
+
+#Reverse operation: make Pair objects from path to YYYYMMDD_YYYYMMDD directory
+tops.Pair.from_path('/net/tiampostorage/volume1/MyleneShare/Bigsur_desc/az1rng2/20170113_20170302')
