@@ -255,17 +255,7 @@ def make_pairs(path, maxdelta=None, singlemaster=None, dates=None, options=dict(
         for first, second in dates:
             first, second = datetimes_str.index(first), datetimes_str.index(second)
             pairs.extend(make_pair(first, second))
-    return [Pair(master=m, slave=s, **options) for m, s in pairs]
-    # make pairs with maxdelta
-    if maxdelta is None:
-        matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) >= abs(datetime.timedelta(days=0))
-        first, second = np.where(np.triu(matches, k=1))
-        pairs = make_pair(first, second)
-    else:
-        matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) <= abs(maxdelta)
-        first, second = np.where(np.triu(matches, k=1))
-        pairs = make_pair(first, second)
-    return [Pair(master=m, slave=s, **options) for m, s in pairs]
+        return [Pair(master=m, slave=s, **options) for m, s in pairs]
     #make pairs with singlemaster
     if singlemaster is not None:
         filter = [d.date() == singlemaster.date() for d in datetimes]
@@ -277,4 +267,15 @@ def make_pairs(path, maxdelta=None, singlemaster=None, dates=None, options=dict(
         slaves = list(np.setdiff1d(paths, master, assume_unique=True))
         master = list(master) * len(slaves)
         pairs = list(zip(master, slaves))
-    return [Pair(master=m, slave=s, **options) for m, s in pairs]
+        return [Pair(master=m, slave=s, **options) for m, s in pairs]
+    # make pairs with maxdelta
+    if maxdelta is None:
+        matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) >= abs(datetime.timedelta(days=0))
+        first, second = np.where(np.triu(matches, k=1))
+        pairs = make_pair(first, second)
+        return [Pair(master=m, slave=s, **options) for m, s in pairs]
+    else:
+        matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) <= abs(maxdelta)
+        first, second = np.where(np.triu(matches, k=1))
+        pairs = make_pair(first, second)
+        return [Pair(master=m, slave=s, **options) for m, s in pairs]
