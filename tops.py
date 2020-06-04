@@ -26,7 +26,7 @@ class Pair(object):
     """
     def __init__(self, master, slave, swaths, orbit, auxiliary,
         path, unwrapper='snaphu_mcf', unwrap=True, az_looks=None, rng_looks=None,
-        dem=None, roi=None, bbox=None, sensor='SENTINEL1'):
+        dem=None, roi=None, bbox=None, sensor='SENTINEL1', dense_offsets=None):
         self.path = os.path.join(path, safe2date(master).strftime('%Y%m%d') + '_' + safe2date(slave).strftime('%Y%m%d'))
         self.master = master
         self.slave = slave
@@ -41,6 +41,7 @@ class Pair(object):
         self.roi = roi
         self.bbox = bbox
         self.sensor = sensor
+        self.fineoffsets = fineoffsets
 
     @classmethod
     def from_path(cls, path):
@@ -60,7 +61,8 @@ class Pair(object):
             dem = root.xpath('component[@name="topsinsar"]/property[@name="demfilename"]')[0].text,
             roi = root.xpath('component[@name="topsinsar"]/property[@name="region of interest"]')[0].text,
             bbox = root.xpath('component[@name="topsinsar"]/property[@name="geocode bounding box"]')[0].text,
-            sensor = root.xpath('component[@name="topsinsar"]/property[@name="Sensor name"]')[0].text
+            sensor = root.xpath('component[@name="topsinsar"]/property[@name="Sensor name"]')[0].text,
+            fineoffsets = root.fineoffsets('component[@name="topsinsar"]/property[@name="do denseOffsets"]'')
         )
 
     def as_xml(self):
@@ -101,6 +103,9 @@ class Pair(object):
         if self.bbox:
             properties.append(dict(
                 name='geocode bounding box', __text__=str(self.bbox)))
+        if self.dense_offsets:
+            properties.append(dict(
+                name='do denseOffsets', __text__=str(self.dense_offsets)))
         tops_dict = dict(
             topsApp=dict(
                 component=dict(name='topsinsar',
