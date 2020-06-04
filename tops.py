@@ -42,7 +42,7 @@ class Pair(object):
         self.roi = roi
         self.bbox = bbox
         self.sensor = sensor
-        self.fineoffsets = fineoffsets
+        self.dense_offsets = dense_offsets
 
     @classmethod
     def from_path(cls, path):
@@ -63,7 +63,7 @@ class Pair(object):
             roi = root.xpath('component[@name="topsinsar"]/property[@name="region of interest"]')[0].text,
             bbox = root.xpath('component[@name="topsinsar"]/property[@name="geocode bounding box"]')[0].text,
             sensor = root.xpath('component[@name="topsinsar"]/property[@name="Sensor name"]')[0].text,
-            fineoffsets = root.fineoffsets('component[@name="topsinsar"]/property[@name="do denseOffsets"]'')
+            dense_offsets = root.dense_offsets('component[@name="topsinsar"]/property[@name="do denseOffsets"]')[0].text
         )
 
     def as_xml(self):
