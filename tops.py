@@ -23,10 +23,11 @@ class Pair(object):
         roi (list): list of region of interest coordinates [S,N,W,E]
         bbox (list): list of bounding box coordinates [S,N,W,E]
         sensor (str): default is 'SENTINEL1'
+        dense_offsets (str): Default is False
     """
     def __init__(self, master, slave, swaths, orbit, auxiliary,
         path, unwrapper='snaphu_mcf', unwrap=True, az_looks=None, rng_looks=None,
-        dem=None, roi=None, bbox=None, sensor='SENTINEL1', dense_offsets=None):
+        dem=None, roi=None, bbox=None, sensor='SENTINEL1', dense_offsets=False):
         self.path = os.path.join(path, safe2date(master).strftime('%Y%m%d') + '_' + safe2date(slave).strftime('%Y%m%d'))
         self.master = master
         self.slave = slave
