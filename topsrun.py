@@ -13,9 +13,9 @@ Use help(tops.Pair) and help(tops.makepairs) for details.
 '''
 
 data_path = '/net/tiampostorage/volume1/MyleneShare/data/bigsur_asc'
-#dates = (
+#dates = [
 #    ('20151027', '20160119'),
-#    ('20151027', '20160212'))
+#    ('20151027', '20160212')]
 #maxdelta = datetime.timedelta(days = 48)
 singlemaster = datetime.datetime(2015, 10, 27)
 
@@ -50,7 +50,7 @@ pairs = tops.make_pairs(path=data_path, singlemaster  = singlemaster, options=op
 for pair in pairs:
     print(pair.path)
 
-
+prin(len(pairs))
 
 for pair in pairs:
     if os.path.isdir(str(pair.path)) == True:
