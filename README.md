@@ -9,3 +9,6 @@ Defines python class object Pair and associated methods
 
 #### isce2png_tiff.py
 Convert interferograms or coherence images output by ISCE into png with associated kml file or geotiff.
+
+#### insarhelpers.py
+Set of functions that can be used for insar processing. Includes converting phase to deformation, extracting number of days between interferograms, getting geographical extent of radar data, etc.
