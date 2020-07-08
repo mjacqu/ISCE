@@ -19,5 +19,5 @@ Identify ISCE pairs that did not process and move to target directory
 #### move_dirs.py
 Set of functions to move directories based on a list in txt files
 
-### cleanup.py
+#### cleanup.py
 uses move_dirs.py and files created by move_faulty.py to clean up directories. Probably broken.
