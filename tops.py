@@ -25,8 +25,8 @@ class Pair(object):
         sensor (str): default is 'SENTINEL1'
         dense_offsets (str): Default is False
     """
-    def __init__(self, master, slave, swaths, orbit, auxiliary,
-        path, unwrapper='snaphu_mcf', unwrap=True, az_looks=None, rng_looks=None,
+    def __init__(self, master, slave, path, orbit, auxiliary, swaths=None,
+        unwrapper='snaphu_mcf', unwrap=True, az_looks=None, rng_looks=None,
         dem=None, roi=None, bbox=None, sensor='SENTINEL1', dense_offsets=False):
         self.path = os.path.join(path, safe2date(master).strftime('%Y%m%d') + '_' + safe2date(slave).strftime('%Y%m%d'))
         self.master = master
@@ -62,8 +62,8 @@ class Pair(object):
             dem = root.xpath('component[@name="topsinsar"]/property[@name="demfilename"]')[0].text,
             roi = root.xpath('component[@name="topsinsar"]/property[@name="region of interest"]')[0].text,
             bbox = root.xpath('component[@name="topsinsar"]/property[@name="geocode bounding box"]')[0].text,
-            sensor = root.xpath('component[@name="topsinsar"]/property[@name="Sensor name"]')[0].text,
-            dense_offsets = root.dense_offsets('component[@name="topsinsar"]/property[@name="do denseOffsets"]')[0].text
+            sensor = root.xpath('component[@name="topsinsar"]/property[@name="Sensor name"]')[0].text
+            #dense_offsets = root.dense_offsets('component[@name="topsinsar"]/property[@name="do denseOffsets"]')[0].text
         )
 
     def as_xml(self):
@@ -221,7 +221,7 @@ def d2xml(d):
 #     #list_of_dates = [tuple(row) for row in dates.values]
 #     return list_of_dates
 
-def make_pairs(path, maxdelta=None, singlemaster=None, dates=None, options=dict()):
+def make_pairs(path, maxdelta=None, singleref=None, dates=None, sequential = None, options=dict()):
     """
     Returns an array of Pair objects to pass to run().
 
@@ -240,48 +240,61 @@ def make_pairs(path, maxdelta=None, singlemaster=None, dates=None, options=dict(
             if datetimes[i] > datetimes[j]:
                 i, j = j, i
             pairs.append((paths[i], paths[j]))
+        pairs = list(set([p for p in pairs]))
         return pairs
 
     paths = glob.glob(os.path.join(path, "S1*.zip"))
     datetimes = np.asarray([safe2date(i) for i in paths])
-    #check keywords:
-    count = 0
-    if maxdelta is not None:
-        count += 1
-    if singlemaster is not None:
-        count += 1
-    if dates is not None:
-        count += 1
-    if count > 1:
-        raise ValueError('Chose only one of maxdelta, singlemaster, or dates')
+
+
+    ref = []
+    sub = []
     # make pairs from dates
     if dates is not None:
         datetimes_str = [d.strftime('%Y%m%d') for d in datetimes]
         pairs = []
         for first, second in dates:
-            first, second = datetimes_str.index(first), datetimes_str.index(second)
-            pairs.extend(make_pair(first, second))
-        return [Pair(master=m, slave=s, **options) for m, s in pairs]
+            r, s = [datetimes_str.index(first)], [datetimes_str.index(second)]
+            ref.extend(r)
+            sub.extend(s)
     #make pairs with singlemaster
-    if singlemaster is not None:
-        filter = [d.date() == singlemaster.date() for d in datetimes]
-        master = list(itertools.compress(paths, filter))
-        if len(master) == 0:
-            raise Exception ('No master file by this date found: ' + str(singlemaster.date()))
-        if len(master) > 1:
-            raise Exception ('More than one master file found. Limit to one file.')
-        slaves = list(np.setdiff1d(paths, master, assume_unique=True))
-        master = list(master) * len(slaves)
-        pairs = list(zip(master, slaves))
-        return [Pair(master=m, slave=s, **options) for m, s in pairs]
+    if maxdelta is not None:
+        matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) <= abs(maxdelta+datetime.timedelta(days = 1))
+        #first, second = np.where(np.triu(matches, k=1))
+        r, s = list(np.where(np.triu(matches, k=1)))
+        ref.extend(r)
+        sub.extend(s)
+    #make pairs sequentially (each date with every nth image)
+    if sequential is not None:
+        sorted_dates = sorted(datetimes)
+        seq_ref = []
+        seq_sub = []
+        for d in range(0, len(sorted_dates)-sequential):
+            r, s = list(np.where(datetimes == sorted_dates[d])[0]), list(np.where(datetimes == sorted_dates[d+sequential])[0]) # need to add option for every third etc.
+            seq_ref.extend(r[:])
+            seq_sub.extend(s[:])
+        ref.extend(seq_ref)
+        sub.extend(seq_sub)
+    # make pairs with one single reference image
+    if singleref is not None:
+        filter = [d.date() == singleref.date() for d in datetimes]
+        ref_date = list(itertools.compress(datetimes, filter))
+        sm_reference = np.where(datetimes == ref_date)[0]
+        if len(sm_reference) == 0:
+            raise Exception ('No reference file by this date found: ' + str(singleref.date()))
+        if len(sm_reference) > 1:
+            raise Exception ('More than one reference file found. Limit to one file.')
+        secondary = list(np.setdiff1d(datetimes, ref_date, assume_unique=True))
+        temp = set(secondary)
+        sm_sub = [i for i, val in enumerate(datetimes) if val in temp]
+        sm_ref = list(sm_reference) * len(secondary)
+        ref.extend(sm_ref)
+        sub.extend(sm_sub)
+    all_pairs = make_pair(ref, sub)
+    return [Pair(master=m, slave=s, **options) for m, s in all_pairs]
     # make pairs with maxdelta
-    if maxdelta is None:
-        matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) >= abs(datetime.timedelta(days=0))
-        first, second = np.where(np.triu(matches, k=1))
-        pairs = make_pair(first, second)
-        return [Pair(master=m, slave=s, **options) for m, s in pairs]
-    else:
-        matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) <= abs(maxdelta)
-        first, second = np.where(np.triu(matches, k=1))
-        pairs = make_pair(first, second)
-        return [Pair(master=m, slave=s, **options) for m, s in pairs]
+    #if maxdelta is None:
+    #    matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) >= abs(datetime.timedelta(days=0))
+    #    first, second = np.where(np.triu(matches, k=1))
+    #    pairs = make_pair(first, second)
+    #    return [Pair(master=m, slave=s, **options) for m, s in pairs]
