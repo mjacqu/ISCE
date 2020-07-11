@@ -226,12 +226,16 @@ def make_pairs(path, maxdelta=None, singleref=None, dates=None, sequential = Non
     Returns an array of Pair objects to pass to run().
 
     Arguments:
-    path (str) = path to raw data directory with zipped safe files
-    maxdelta (datetime.timedelta) = Maximum time delta between paired acquisition
-                        dates. Default is None, which will pair N to N files.
-    singlemaster (datetime.datetime) = date to use as single master
-    dates (tuple of datetime.datetime tuples) = pass specific pairs of dates to process.
-    options (dict) = see Pair() class definition for details
+    path (str):                                  path to raw data directory with zipped safe files
+    maxdelta (datetime.timedelta):               Maximum time delta between paired acquisition
+                                                 dates.
+    singleref (datetime.datetime):               date to use as single reference image
+    dates (list of datetime.datetime tuples):    pass specific pairs of dates to process
+    sequential (int):                            nth date to pair with each date
+    options (dict):                              see Pair() class definition for details
+
+    Returns:
+    Pair (object)
     """
     def make_pair(first, second):
         first, second = np.atleast_1d(first), np.atleast_1d(second)
