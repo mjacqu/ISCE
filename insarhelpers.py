@@ -4,7 +4,16 @@ import sys
 from datetime import datetime
 sys.path.append('/home/myja3483/isce_tools/GIANT')
 import json
+import os
+from osgeo import gdal_array
 from shapely.geometry.polygon import Polygon
+
+#load files from merged directory
+def load_rdr(path, fn):
+    path_to_fn = os.path.join(path,fn)
+    file = gdal_array.LoadFile(path_to_fn)
+    ds=gdal.Open(os.path.join(path,fn))
+    return file, ds
 
 # convert unwrapped phase to deformation:
 def get_deformation(unw_ig, wavelength):
@@ -116,3 +125,28 @@ def GetExtent(gt,cols,rows):
             ext.append([x,y])
         yarr.reverse()
     return ext
+
+
+# Function to normalize the grid values
+def normalize_rgb(array):
+    """Normalizes numpy arrays into scale 0.0 - 1.0"""
+    array_min, array_max = array.min(), array.max()
+    return ((array - array_min)/(array_max - array_min))
+
+def get_los(az, l):
+    '''
+    Get dx and dy for plotting flight direction and los for plotting vectors.
+
+    Parameters:
+    los (array):    array with radar line of sight
+    l (float):      length of plotting vector
+
+
+    Returns:
+    dx, dy (float): x and y offsets for plotting
+    '''
+    mean_az = az.mean()
+    az_from_east = 90-(-mean_az - 180)
+    dx = np.cos(np.radians(az_from_east))*l
+    dy = np.sin(np.radians(az_from_east))*l
+    return dx, dy
