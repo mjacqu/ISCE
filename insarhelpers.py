@@ -7,6 +7,9 @@ import json
 import os
 from osgeo import gdal_array
 from shapely.geometry.polygon import Polygon
+from PIL import Image, ImageEnhance
+import rasterio
+import rasterio.merge
 
 #load files from merged directory
 def load_rdr(path, fn):
@@ -150,3 +153,30 @@ def get_los(az, l):
     dx = np.cos(np.radians(az_from_east))*l
     dy = np.sin(np.radians(az_from_east))*l
     return dx, dy
+
+
+def make_MS_img(mosaic_list, band_order, res = None, bounds = None, brightness_f = 1, contrast_f = 1):
+    '''
+    Mosaic image tiles and return plottable image. Set to true color (band_order = [0,1,2]
+    or false color image (band_order = [3,1,0]). Adjust brightness and contrast.
+    '''
+    mosaic, out_transform = rasterio.merge.merge(mosaic_list, res = res, bounds = bounds)
+    band_1 = normalize_rgb(mosaic[band_order[0]])
+    band_2 = normalize_rgb(mosaic[band_order[1]])
+    band_3 = normalize_rgb(mosaic[band_order[2]])
+    #red = insarhelpers.normalize_rgb(mosaic[0])
+    #green = insarhelpers.normalize_rgb(mosaic[1])
+    #blue = insarhelpers.normalize_rgb(mosaic[2])
+    #nir = insarhelpers.normalize_rgb(mosaic[3])
+    #planet_rgb = (np.dstack((nir, green, red))* 255.0) .astype(np.uint8)
+    img_stack = (np.dstack((band_1, band_2, band_3))* 255.0).astype(np.uint8)
+    img = Image.fromarray(img_stack) # turn in to PIL image
+    brightness = ImageEnhance.Brightness(img)
+    b_factor = brightness_f
+    planet_bright = brightness.enhance(b_factor)
+    contrast = ImageEnhance.Contrast(planet_bright)
+    c_factor = contrast_f
+    planet_enh = contrast.enhance(c_factor)
+    mosaic_extent = [out_transform[2], out_transform[2]+(mosaic.shape[2]*out_transform[0]),
+                    out_transform[5]+(mosaic.shape[1]*out_transform[4]), out_transform[5]]
+    return planet_enh, mosaic_extent
