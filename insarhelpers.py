@@ -1,5 +1,5 @@
 import numpy as np
-import gdal
+from osgeo import gdal
 import sys
 from datetime import datetime
 sys.path.append('/home/myja3483/isce_tools/GIANT')

@@ -37,6 +37,12 @@ class Interferogram(object):
             proj-string of desired projection. Default is EPSG:4326 (projection=None)
         extent : list
             x-min, x-max, y-min, y-max coordinates of image extent for plotting
+        width : integer
+            number of columns
+        height: integer
+            number of rows
+        transform: tuple
+            geotransform passed from self.metadata
         cmap : matplotlib.colors.LinearSegmentedColormap
             circular colormap for plotting phase
 
@@ -52,7 +58,7 @@ class Interferogram(object):
             generate line of sight and flight direction vectors for plotting
 
     """
-    def __init__(self, path, projection=None):
+    def __init__(self, path, projection=None): #set projection to default 4326
         self.path = os.path.join(path,'merged')
         self.dates = parse_dates(path)
         self.metadata = load_metadata(self.path, 'filt_topophase.flat.geo')
@@ -63,6 +69,7 @@ class Interferogram(object):
         self.projection = projection
         self.extent = get_extent(self.metadata, self.projection)
         self.cmap = LinearSegmentedColormap.from_list('mycmap',['cyan', 'magenta', 'yellow', 'cyan'])
+
 
     def mask_phase(self, coh_th):
         """Mask the phase based on a coherence threshold
