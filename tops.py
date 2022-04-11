@@ -9,8 +9,8 @@ import numpy as np
 class Pair(object):
     """
     Attributes:
-        master (str): Path to master data file
-        slave (str): Path to slave data file
+        reference (str): Path to reference data file
+        secondary (str): Path to secondary data file
         swaths (list): list of swaths to process, i.e. [2,3]
         orbit (str): Path to orbit directory
         auxiliary (str): Path to auxiliary directory
@@ -25,12 +25,12 @@ class Pair(object):
         sensor (str): default is 'SENTINEL1'
         dense_offsets (str): Default is False
     """
-    def __init__(self, master, slave, path, orbit, auxiliary, swaths=None,
+    def __init__(self, reference, secondary, path, orbit, auxiliary, swaths=None,
         unwrapper='snaphu_mcf', unwrap=True, az_looks=None, rng_looks=None,
         dem=None, roi=None, bbox=None, sensor='SENTINEL1', dense_offsets=False):
-        self.path = os.path.join(path, safe2date(master).strftime('%Y%m%d') + '_' + safe2date(slave).strftime('%Y%m%d'))
-        self.master = master
-        self.slave = slave
+        self.path = os.path.join(path, safe2date(reference).strftime('%Y%m%d') + '_' + safe2date(secondary).strftime('%Y%m%d'))
+        self.reference = reference
+        self.secondary = secondary
         self.swaths = swaths
         self.unwrapper = unwrapper
         self.orbit = orbit
@@ -49,11 +49,11 @@ class Pair(object):
         xml_fn = 'topsApp.xml'
         root = etree.parse(os.path.join(path,xml_fn)).getroot()
         return cls(
-            master = root.xpath('component[@name="topsinsar"]/component[@name="master"]/property[@name="safe"]')[0].text,
-            slave = root.xpath('component[@name="topsinsar"]/component[@name="slave"]/property[@name="safe"]')[0].text,
+            reference = root.xpath('component[@name="topsinsar"]/component[@name="reference"]/property[@name="safe"]')[0].text,
+            secondary = root.xpath('component[@name="topsinsar"]/component[@name="secondary"]/property[@name="safe"]')[0].text,
             swaths = root.xpath('component[@name="topsinsar"]/property[@name="swaths"]')[0].text,
-            orbit = root.xpath('component[@name="topsinsar"]/component[@name="master"]/property[@name="orbit directory"]')[0].text,
-            auxiliary = root.xpath('component[@name="topsinsar"]/component[@name="master"]/property[@name="auxiliary data directory"]')[0].text,
+            orbit = root.xpath('component[@name="topsinsar"]/component[@name="reference"]/property[@name="orbit directory"]')[0].text,
+            auxiliary = root.xpath('component[@name="topsinsar"]/component[@name="reference"]/property[@name="auxiliary data directory"]')[0].text,
             path = os.path.dirname(path),
             unwrapper = root.xpath('component[@name="topsinsar"]/property[@name="unwrapper name"]')[0].text,
             unwrap = root.xpath('component[@name="topsinsar"]/property[@name="do unwrap"]')[0].text,
@@ -67,21 +67,21 @@ class Pair(object):
         )
 
     def as_xml(self):
-        master = dict(
-            name='master',
+        reference = dict(
+            name='reference',
             property=[
                 dict(name='orbit directory', __text__=self.orbit),
                 dict(name='auxiliary data directory', __text__=self.auxiliary),
-                dict(name='safe', __text__=self.master),
-                dict(name='output directory', __text__='master')]
+                dict(name='safe', __text__=self.reference),
+                dict(name='output directory', __text__='reference')]
             )
-        slave = dict(
-            name='slave',
+        secondary = dict(
+            name='secondary',
             property=[
                 dict(name='orbit directory', __text__=self.orbit),
                 dict(name='auxiliary data directory', __text__=self.auxiliary),
-                dict(name='safe', __text__=self.slave),
-                dict(name='output directory', __text__='slave')]
+                dict(name='safe', __text__=self.secondary),
+                dict(name='output directory', __text__='secondary')]
             )
         properties = [
             dict(name='Sensor name', __text__=self.sensor),
@@ -110,7 +110,7 @@ class Pair(object):
         tops_dict = dict(
             topsApp=dict(
                 component=dict(name='topsinsar',
-                    component=[master, slave],
+                    component=[reference, secondary],
                     property=properties
                 )
             )
@@ -261,7 +261,7 @@ def make_pairs(path, maxdelta=None, singleref=None, dates=None, sequential = Non
             r, s = [datetimes_str.index(first)], [datetimes_str.index(second)]
             ref.extend(r)
             sub.extend(s)
-    #make pairs with singlemaster
+    #make pairs with singleref
     if maxdelta is not None:
         matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) <= abs(maxdelta+datetime.timedelta(days = 1))
         #first, second = np.where(np.triu(matches, k=1))
@@ -295,10 +295,10 @@ def make_pairs(path, maxdelta=None, singleref=None, dates=None, sequential = Non
         ref.extend(sm_ref)
         sub.extend(sm_sub)
     all_pairs = make_pair(ref, sub)
-    return [Pair(master=m, slave=s, **options) for m, s in all_pairs]
+    return [Pair(reference=m, secondary=s, **options) for m, s in all_pairs]
     # make pairs with maxdelta
     #if maxdelta is None:
     #    matches = np.abs(np.column_stack([datetimes - d for d in datetimes])) >= abs(datetime.timedelta(days=0))
     #    first, second = np.where(np.triu(matches, k=1))
     #    pairs = make_pair(first, second)
-    #    return [Pair(master=m, slave=s, **options) for m, s in pairs]
+    #    return [Pair(reference=m, secondary=s, **options) for m, s in pairs]
