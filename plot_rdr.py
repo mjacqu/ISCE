@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/scratch_net/vierzack05_second/mylenej/isce_tools')
+sys.path.append('/scratch_net/vierzack05_second/mylenej/ISCE')
 import interferogram
 import os
 import matplotlib.pyplot as plt
