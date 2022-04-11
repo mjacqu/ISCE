@@ -45,7 +45,7 @@ ifg = interferogram.Interferogram(
 )
 
 #los vectors for plotting
-los_dx, los_dy, fd_dx, fd_dy = ifg.get_los_vec(500) #for plotting los arrows
+#los_dx, los_dy, fd_dx, fd_dy = ifg.get_los_vec(500) #for plotting los arrows
 
 # calculate slope and aspect of DEM
 slope_deg = richdem.TerrainAttribute(dem, attrib='slope_degrees')
@@ -53,7 +53,23 @@ slope_dx = richdem.TerrainAttribute(dem, attrib='slope_riserun')
 aspect = richdem.TerrainAttribute(dem, attrib='aspect')
 
 look_angle = np.radians(np.median(ifg.los[0]))
+
 #Todo: resample look angle and heading to DEM grid.
+#t_srs = 'EPSG:2056'
+#options = gdal.WarpOptions(options=['et' ,'t_srs', 'f'],
+#    errorThreshold=0.01,
+#    dstSRS=t_srs,
+#    format='VRT'
+#)
+
+#los = gdal.Warp('',
+#    gdal.Open(os.path.join(ifg.path,'los.rdr.geo')),
+#    options=options
+#)
+#dst = gdal.GetDriverByName('VRT').Create('', dem.shape[0], dem.shape[1], 1, gdalconst.GDT_Float32)
+#dst.SetGeoTransform(dem.geotransform)
+#dst.SetProjection(dem.projection)
+#los_resamp = gdal.ReprojectImage(los, dst, los.GetProjection(), dem.projection, gdalconst.GRA_Bilinear)
 
 
 #Thresholds:
@@ -187,8 +203,8 @@ def xy2ind(x, y, array):
 
 rot = -np.radians(360-heading) #theta in radians
 x, y = ind2xy(*np.indices(dem.shape), dem) #rows = y, columns = x
-x_rot = x*np.cos(rot)-y*np.sin(rot) #distance from sensor plane
-y_rot = x*np.sin(rot)+y*np.cos(rot) #distance from top edge of image
+x_rot = x*np.cos(rot)-y*np.sin(rot) #cells from sensor plane
+y_rot = x*np.sin(rot)+y*np.cos(rot) #cells from top edge of image
 
 f, ax = plt.subplots(2,3)
 ax[0,0].imshow(np.indices(dem.shape)[0])
@@ -216,6 +232,13 @@ range_mask = (x_rot>1000) & (x_rot < 1001)
 plt.imshow(range_mask)
 plt.show()
 
+################ new simple attempt? ###############
+los_mask = (y_rot>=1000) & (y_rot < 1001)
+distances = x_rot[los_mask]
+d_sort = np.argsort(distances)
+d = distances[d_sort]
+h_los = dem[los_mask][d_sort]
+###################################################
 
 #true distance from radar projection plane:
 cell_size = 10 #m
@@ -263,9 +286,22 @@ plt.plot(sorted_dist, sorted_elevation, 'r')
 plt.scatter(sorted_dist, sorted_elevation)
 plt.show()
 
-#get projected height from sorted_dist
-p_height = np.tan(np.radians(90-np.median(ifg.los[0])))*sorted_dist + sorted_elevation
+#################continuation from simple solution ####################
 
+plt.plot(d, h_los, 'r')
+plt.scatter(d, h_los)
+plt.show()
+
+
+#get projected height from sorted_dist
+cell_size=10
+dist=d*cell_size
+
+def calc_projected_height(theta, dist, h):
+    p_height = np.tan(np.radians(90-np.median(theta)))*dist + h
+    return p_height
+
+p_height = calc_projected_height(ifg.los[0], sorted_dist, sorted_elevation)
 
 #plot projected height and elevation along one line of sight
 f, (ax1, ax2) = plt.subplots(2,1, sharex=True)
