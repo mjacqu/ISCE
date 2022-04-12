@@ -11,6 +11,8 @@ import rasterio
 import earthpy
 import earthpy.spatial as es
 import earthpy.plot as ep
+import typing
+import scipy.interpolate
 
 '''
 Outline:
@@ -83,6 +85,14 @@ plt.show()
 #y' = x*sin(theta)+y*cos(theta)
 #where x,y = original coordinates, theta=rotation angle from horizontal x, x',y'=rotated coordinates
 
+rot = -np.radians(360-heading) # rotation of grid from due north
+x, y = ind2xy(*np.indices(dem.shape), dem) #rows = y, columns = x
+x_rot = x*np.cos(rot)-y*np.sin(rot) #distance from sensor plane
+y_rot = x*np.sin(rot)+y*np.cos(rot) #distance from top edge of image
+
+
+#Functions
+
 def ind2xy(r, c, array):
     'convert (row, colum) index into cartesian (x,y) coordinates: flip y-axis so that origin is bottom left corner'
     x = c
@@ -97,10 +107,72 @@ def xy2ind(x, y, array):
     r = array.shape[0]-y
     return r, c
 
-rot = -np.radians(360-heading) # rotation of grid from due north
-x, y = ind2xy(*np.indices(dem.shape), dem) #rows = y, columns = x
-x_rot = x*np.cos(rot)-y*np.sin(rot) #distance from sensor plane
-y_rot = x*np.sin(rot)+y*np.cos(rot) #distance from top edge of image
+def rotate_xy(x: np.ndarray, y: np.ndarray, angle: float) -> typing.Tuple[np.ndarray, np.ndarray]:
+    x_prime = x*np.cos(angle)-y*np.sin(angle) #distance from sensor plane
+    y_prime = x*np.sin(angle)+y*np.cos(angle) #distance from top edge of image
+    return x_prime, y_prime
+
+def rotate_array(array: np.ndarray, angle: float) -> np.ndarray:
+    """
+    Reinterpolate array onto rotated grid.
+
+    Parameters
+    ----------
+    array
+        Rotation relative to center of bottom left cell.
+    angle
+        degrees counter-clockwise from North
+    """
+    angle = -np.radians(angle)
+    x, y = ind2xy(*np.indices(array.shape), array) #rows = y, columns = x
+    x_prime, y_prime = rotate_xy(x, y, angle)
+    range_x_prime = np.arange(x_prime.min(), x_prime.max() + 1, 1)
+    range_y_prime = np.flip(np.arange(y_prime.min(), y_prime.max() + 1, 1))
+    xy_prime_grid = np.meshgrid(range_x_prime, range_y_prime)
+    x_back, y_back = rotate_xy(xy_prime_grid[0], xy_prime_grid[1], -angle)
+    interpolator = scipy.interpolate.RegularGridInterpolator(
+        points=(-y[:, 0], x[0]),
+        values=array,
+        bounds_error=False
+    )
+    interpolated = interpolator(np.column_stack((-y_back.reshape(-1), x_back.reshape(-1))))
+    return interpolated.reshape(x_back.shape), x_prime, y_prime
+
+def rotate_array_inverse(rot_array, x_prime, y_prime):
+    range_x_prime = np.arange(x_prime.min(), x_prime.max() + 1, 1)
+    range_y_prime = np.flip(np.arange(y_prime.min(), y_prime.max() + 1, 1))
+    interpolator = scipy.interpolate.RegularGridInterpolator(
+        points=(-range_y_prime, range_x_prime),
+        values=rot_array,
+        bounds_error=False
+    )
+    interpolated = interpolator(np.column_stack((-y_prime.reshape(-1), x_prime.reshape(-1))))
+    return interpolated.reshape(x_prime.shape)
+
+def calc_projected_height(theta, rot_dem, cell_size):
+    dist = np.indices(rot_dem.shape)[1]*cell_size
+    p_height = np.tan(np.radians(90-np.median(theta)))*dist + rot_dem
+    return p_height
+
+
+# run the functions
+prime_array, x_prime, y_prime = rotate_array(dem, angle=190)
+h_p = calc_projected_height(60, prime_array, cell_size)
+vis = h_p >= np.fmax.accumulate(h_p, axis=1)
+vis_reg = rotate_array_inverse(vis, x_prime, y_prime)
+
+
+#plot results
+# plt.figure()
+# plt.imshow(dem)
+#
+# plt.figure()
+# plt.imshow(prime_array)
+#
+# plt.figure()
+# plt.imshow(vis)
+plt.figure()
+plt.imshow(vis_reg)
 
 #empty array of same size
 #flat indices of non-zero elements of line of sight mask
@@ -110,9 +182,6 @@ y_rot_start = np.arange(y_rot.min(), y_rot.max(), 1)
 visibility = np.full((dem.shape), np.nan)
 
 
-def calc_projected_height(theta, dist, h):
-    p_height = np.tan(np.radians(90-np.median(theta)))*dist + h
-    return p_height
 
 for i in y_rot_start:
     los_mask = (y_rot>=i) & (y_rot < i+1)
@@ -144,8 +213,8 @@ oneline.flat[oneind] = np.ones(oneind.shape)
 plt.ion()
 plt.figure()
 plt.imshow(hillshade, cmap='Greys_r')
-plt.imshow(visibility, alpha = 0.6)
-plt.imshow(oneline, alpha=0.2)
+plt.imshow(vis_reg, alpha = 0.6)
+#plt.imshow(oneline, alpha=0.2)
 
 dist = x_rot[onemask]
 d_sort = np.argsort(dist)
