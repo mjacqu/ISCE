@@ -1,5 +1,5 @@
 import numpy as np
-from osgeo import gdal
+from osgeo import gdal, gdalconst
 import sys
 from datetime import datetime
 sys.path.append('/home/myja3483/isce_tools/GIANT')
@@ -180,3 +180,35 @@ def make_MS_img(mosaic_list, band_order, res = None, bounds = None, brightness_f
     mosaic_extent = [out_transform[2], out_transform[2]+(mosaic.shape[2]*out_transform[0]),
                     out_transform[5]+(mosaic.shape[1]*out_transform[4]), out_transform[5]]
     return planet_enh, mosaic_extent
+
+def reproject_to_target_raster(source_path, target, target_srs):
+    """
+    Reproject source raster to geographical extent of another raster.
+
+    Parameters
+    ---------------
+    source_path: str
+        path to source raster
+    target:
+        geospatial raster
+    target_srs: str
+        EPSG code of target spatial reference system
+    """
+    target_extent=[target.geotransform[0],
+        target.geotransform[3]+target.geotransform[5]*target.shape[0],
+        target.geotransform[0]+target.geotransform[1]*target.shape[1],
+        target.geotransform[3]]
+    options = gdal.WarpOptions(
+        xRes=target.geotransform[1],
+        yRes=target.geotransform[1],
+        outputBounds=target_extent,
+        errorThreshold=0.01,
+        resampleAlg=gdalconst.GRA_Bilinear,
+        dstSRS=target_srs,
+        format='VRT'
+    )
+    reprojected = gdal.Warp('',
+        gdal.Open(source_path),
+        options=options
+    )
+    return reprojected
