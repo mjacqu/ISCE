@@ -4,6 +4,8 @@ import los_projection as lp
 import numpy as np
 sys.path.append('./')
 import interferogram
+import shadow_functions
+import insarhelpers
 from osgeo import gdal
 import scipy.signal
 import richdem
@@ -18,7 +20,7 @@ from matplotlib import colors
 
 '''
 Outline:
-1. Create shadow and layover mask following Rees 2000
+1. Create shadow mask using projected height approach from Pairman and McNeil
 2. Apply compression-factor analysis following Cigna 2014 et al.,
 
 Define geometric parameters:
@@ -32,20 +34,63 @@ _: Look direction clockwise from NORTH (normal to γ)
 
 
 '''
-#Spitzer Stein DEM (note: needs to be in meters for slope calculation to work)
-path = '/Users/mistral/Documents/ETHZ/Science/SpitzerStein/kandersteg10m.tif'
-
-# Load DEM
-dem = richdem.LoadGDAL(path)
-
+# 1. Input: Geometric parameters
+#look direction --> either from ifg or manual entry
 #load radar data
 ifg = interferogram.Interferogram(
     path ='/Volumes/Science/SpitzerStein/testdata/20151006_20151018'
     #path='/Users/mistral/Documents/ETHZ/Science/SpitzerStein/testdata/20151006_20151018'
 )
 
-#los vectors for plotting
-#los_dx, los_dy, fd_dx, fd_dy = ifg.get_los_vec(500) #for plotting los arrows
+look_direction = np.median(ifg.los[1])*-1
+heading = look_direction + 90
+
+#Question: does the slight variation of look_direction matter?
+
+# 2. Input: DEM
+#Spitzer Stein DEM (note: needs to be in meters for slope calculation to work)
+path = '/Users/mistral/Documents/ETHZ/Science/SpitzerStein/kandersteg10m_crop.tif'
+#path = '/Volumes/Science/LudovicArolla/SurfaceElevation_ArollaCrop.tif'
+dem = richdem.LoadGDAL(path)
+cell_size = dem.geotransform[1]
+
+#reproject los parameters to the extent of the dem (not used right now because of artefacts in the los data)
+reprojected = insarhelpers.reproject_to_target_raster(
+    source_path = '/Volumes/Science/SpitzerStein/testdata/20151006_20151018/merged/los.rdr.geo',
+    target = dem,
+    target_srs = 'EPSG:2056')
+los_reprojected = reprojected.ReadAsArray() #this are now the look angle and incidence angles reprojected to CH1903 LV95 (same as DEM)
+
+# run the functions
+prime_array, x_prime, y_prime = shadow_functions.rotate_array(dem, angle=heading)
+h_p = shadow_functions.calc_projected_height(np.median(ifg.los[0]), prime_array, cell_size)
+rc = shadow_functions.calc_layover_distance(np.median(ifg.los[0]), prime_array, cell_size)
+vis = h_p >= np.fmax.accumulate(h_p, axis=1)
+vis_reg = shadow_functions.rotate_array_inverse(vis, x_prime, y_prime)
+#layover 1 (search for maximum from left to right)
+layover1 = rc >= np.fmax.accumulate(rc, axis=1)
+lay1_reg = shadow_functions.rotate_array_inverse(layover1, x_prime, y_prime)
+#layover 2 (search for minimum from right to left)
+layover2 = rc >= np.fmin.accumulate(np.flip(rc), axis=1)
+lay2_reg = shadow_functions.rotate_array_inverse(layover2, x_prime, y_prime)
+
+#plot results
+# plt.figure()
+# plt.imshow(dem)
+#
+# plt.figure()
+# plt.imshow(prime_array)
+#
+# plt.figure()
+# plt.imshow(vis)
+#plt.figure()
+plt.imshow(hillshade, cmap='Greys_r')
+plt.imshow(lay2_reg, alpha = 0.7)
+plt.show()
+
+plt.plot(rc[100,:])
+plt.imshow(rc[rc==10])
+# old stuff below
 
 # calculate slope and aspect of DEM
 slope_deg = richdem.TerrainAttribute(dem, attrib='slope_degrees')
@@ -53,23 +98,6 @@ slope_dx = richdem.TerrainAttribute(dem, attrib='slope_riserun')
 aspect = richdem.TerrainAttribute(dem, attrib='aspect')
 
 look_angle = np.radians(np.median(ifg.los[0]))
-
-#Todo: resample look angle and heading to DEM grid.
-#t_srs = 'EPSG:2056'
-#options = gdal.WarpOptions(options=['et' ,'t_srs', 'f'],
-#    errorThreshold=0.01,
-#    dstSRS=t_srs,
-#    format='VRT'
-#)
-
-#los = gdal.Warp('',
-#    gdal.Open(os.path.join(ifg.path,'los.rdr.geo')),
-#    options=options
-#)
-#dst = gdal.GetDriverByName('VRT').Create('', dem.shape[0], dem.shape[1], 1, gdalconst.GDT_Float32)
-#dst.SetGeoTransform(dem.geotransform)
-#dst.SetProjection(dem.projection)
-#los_resamp = gdal.ReprojectImage(los, dst, los.GetProjection(), dem.projection, gdalconst.GRA_Bilinear)
 
 
 #Thresholds:
@@ -155,234 +183,4 @@ ax2.imshow(hillshade, cmap='Greys_r')
 ax2.imshow(np.ma.masked_array(dem, mask=facing_toward.mask))
 ax2.imshow(np.ma.masked_array(layover, mask=facing_toward.mask), cmap=cmap_red)
 ax2.imshow(np.ma.masked_array(shadow, mask=facing_away.mask), cmap=cmap_black)
-f.show()
-
-#Build algorithm for type-2 shadow classification ("passive shadow")
-heading = look_direction + 90
-'''
-#painstaking approach of generating the line
-
-#all in map coordinates
-
-
-#single test index
-r = 1500
-c = 500
-
-p1=np.asarray((0,0))
-#p2=np.asarray((lp.pol2cart(lp.rotate_azimuth(heading), 90)[0], lp.pol2cart(lp.rotate_azimuth(heading), 90)[1]))
-p2=np.asarray((-0.16, 0.98))
-p3=np.asarray(ind2xy(r,c,dem))
-linalg.norm(np.cross(p2-p1, p1-p3))/linalg.norm(p2-p1)
-
-#by hand:
-#|ax_1 +b<_1|/sqrt(a**2 + b**2)
-((0.98*500)+(0.16*500)+0)/(np.sqrt((0.98**2)+(0.16**2)))
-'''
-
-
-#AAAAAACTUALLY, just rotate the whole matrix to generate the new indices for each pixel
-#https://en.wikipedia.org/wiki/Rotation_matrix
-#x' = x*cos(theta)-y*sin(theta)
-#y' = x*sin(theta)+y*cos(theta)
-#where x,y = original coordinates, theta=rotation angle from horizontal x, x',y'=rotated coordinates
-
-def ind2xy(r, c, array):
-    'convert (row, colum) index into cartesian (x,y) coordinates: flip y-axis so that origin is bottom left corner'
-    x = c
-    y = array.shape[0]-(r+1)
-    return x, y
-
-def xy2ind(x, y, array):
-    '''
-    reverse operation from ind2xy: shift origin back to top right
-    '''
-    c = x
-    r = array.shape[0]-y
-    return r, c
-
-rot = -np.radians(360-heading) #theta in radians
-x, y = ind2xy(*np.indices(dem.shape), dem) #rows = y, columns = x
-x_rot = x*np.cos(rot)-y*np.sin(rot) #cells from sensor plane
-y_rot = x*np.sin(rot)+y*np.cos(rot) #cells from top edge of image
-
-f, ax = plt.subplots(2,3)
-ax[0,0].imshow(np.indices(dem.shape)[0])
-ax[0,0].set_title('dem shape rows')
-ax[1,0].imshow(np.indices(dem.shape)[1])
-ax[1,0].set_title('dem shape columns')
-ax[0,1].imshow(y)
-ax[0,1].set_title('y')
-ax[1,1].imshow(x)
-ax[1,1].set_title('x')
-ax[0,2].imshow(y_rot)
-ax[0,2].set_title('y_rot')
-ax[1,2].imshow(x_rot)
-ax[1,2].set_title('x_rot')
-f.show()
-
-#lines of same line of sight
-los_mask = (y_rot>=1000) & (y_rot < 1001)
-plt.imshow(los_mask)
-plt.show()
-
-
-#lines of equal range
-range_mask = (x_rot>1000) & (x_rot < 1001)
-plt.imshow(range_mask)
-plt.show()
-
-################ new simple attempt? ###############
-los_mask = (y_rot>=1000) & (y_rot < 1001)
-distances = x_rot[los_mask]
-d_sort = np.argsort(distances)
-d = distances[d_sort]
-h_los = dem[los_mask][d_sort]
-###################################################
-
-#true distance from radar projection plane:
-cell_size = 10 #m
-scaled_cell = np.cos(rot) * cell_size #scaled distance between cell centers scaled to account for rotation.
-dist_from_projplane = x_rot * scaled_cell #distance in meters for each point from radar projection plane
-
-plt.imshow(dist_from_projplane)
-plt.show()
-
-#Get terrain height along one line of sight at true distance from radar
-h_los = dem[(y_rot>1000) & (y_rot < 1001)]
-p_dist = dist_from_projplane[(y_rot>1000) & (y_rot < 1001)]
-#plot terrain hight versus distance: Note (zoom in) data is not sorted by distance!
-plt.scatter(p_dist, h_los)
-plt.plot(p_dist, h_los, color='r')
-plt.xlabel('Distance from projection plane (m)')
-plt.ylabel('Elevation (m)')
-plt.show()
-
-#check
-def check_los_direction(p_dist, h_los):
-    if p_dist[0] < p_dist[-1]:
-        print(f"{p_dist[0]} is smaller than {p_dist[-1]} \n do not flip")
-        h_los_flp = h_los
-    else:
-        print(f"{p_dist[0]} is larger than {p_dist[-1]} \n flipping!")
-        h_los_flp = np.flip(h_los)
-        p_dist_flp = np.flip(p_dist)
-    return h_los_flp, p_dist_flp
-
-h_los_flp, p_dist_flp = check_los_direction(p_dist, h_los)
-
-# The plot still looks the same, but the arrays are flipped so that the distance
-# from the proj plane increases from left to right.
-plt.plot(p_dist_flp, h_los_flp, 'r')
-plt.scatter(p_dist_flp, h_los_flp)
-plt.show()
-
-#sort distance array such that distance increases from left to right at every step
-sorted_dist = np.sort(p_dist_flp)
-sort_key = np.argsort(p_dist_flp) #position of each distance in sorted distance array
-sorted_elevation = [element for _, element in sorted(zip(sort_key, h_los_flp))] #apply sort key to elevation
-
-plt.plot(sorted_dist, sorted_elevation, 'r')
-plt.scatter(sorted_dist, sorted_elevation)
-plt.show()
-
-#################continuation from simple solution ####################
-
-plt.plot(d, h_los, 'r')
-plt.scatter(d, h_los)
-plt.show()
-
-
-#get projected height from sorted_dist
-cell_size=10
-dist=d*cell_size
-
-def calc_projected_height(theta, dist, h):
-    p_height = np.tan(np.radians(90-np.median(theta)))*dist + h
-    return p_height
-
-p_height = calc_projected_height(ifg.los[0], sorted_dist, sorted_elevation)
-
-#plot projected height and elevation along one line of sight
-f, (ax1, ax2) = plt.subplots(2,1, sharex=True)
-ax1.plot(sorted_dist, p_height)
-ax2.plot(sorted_dist, sorted_elevation)
-ax2.axis('equal')
-f.show()
-
-#difference projected height from left to right
-diff = np.diff(p_height)
-
-#if diff is negative --> terrain dipping away from radar
-diff_sign = np.sign(diff)
-neg_diff = np.ma.masked_where(diff_sign!=-1, p_height[:-1]) #all points that have a negative diff
-sign_change = ((np.roll(diff_sign, 1) - diff_sign) != 0).astype(int) #
-change_idx = np.where(sign_change!=0)[0][::2] #idx where there is a change from positive diff to negative diff (and not the change back)
-h_change_idx = p_height[change_idx]
-
-
-f, (ax1, ax2) = plt.subplots(2,1, sharex=True)
-ax1.scatter(sorted_dist, p_height)
-ax1.scatter(sorted_dist[:-1], neg_diff)
-ax1.scatter(sorted_dist[:-1], np.ma.masked_where(sign_change==0, sign_change))
-ax2.plot(sorted_dist[:-1], diff)
-f.show()
-
-
-#find all elements change_idx and idx where h = h_change_idx and return
-def find_ele(p_height, start_idx, val):
-    #for ele in p_height[start_idx:]:
-    for end_idx in np.arange(start_idx+1,len(p_height)):
-        if p_height[end_idx] >= val:
-            return np.arange(start_idx, end_idx)
-        #if ele >= val:
-        #    ele_idx = np.where(p_height==ele)
-        #    print(ele_idx)
-        #return ele_idx
-
-'''
-#test with simple example
-test_height = np.asarray([1,3,5,6,4,3,1,3,5,7,8,9,6,3,4,7,8,9,11,15])
-test_diff=np.diff(test_height)
-test_diff_sign = np.sign(test_diff)
-test_sign_change = ((np.roll(test_diff_sign, 1) - test_diff_sign) != 0).astype(int)
-ch_idx = np.where(test_sign_change!=0)[0][::2]
-h_ch_idx = test_height[ch_idx]
-
-shadow_array = []
-for i,s in zip(ch_idx, h_ch_idx):
-    temp = find_ele(test_height, i, s)
-    shadow_array = np.concatenate((shadow_array, temp), axis=0).astype(int)
-    mask_array = np.ones(len(test_height), dtype=bool)
-    mask_array[shadow_array] = False
-
-plt.plot(test_height)
-plt.plot(np.ma.masked_where(mask_array, test_height), 'r')
-plt.show()
-'''
-
-
-def make_shadow_mask(ch_idx, h_ch_idx, p_h, terrain):
-    shadow_array = []
-    for s,v in zip(ch_idx, h_ch_idx):
-        temp = find_ele(p_h, s, v)
-        shadow_array = np.concatenate((shadow_array, temp), axis=0).astype(int)
-    mask_array = np.ones(len(p_h), dtype=bool)
-    mask_array[shadow_array] = False
-    shadow_mask = np.ma.masked_where(mask_array, p_h)
-    terrain_shadow = np.ma.masked_where(mask_array, terrain)
-    return shadow_mask, terrain_shadow
-
-rdr_shadow_mask, terrain_shadow = make_shadow_mask(change_idx, h_change_idx, p_height, sorted_elevation)
-
-f, (ax1, ax2) = plt.subplots(2,1, sharex=True)
-ax1.plot(sorted_dist, p_height, 'k')
-ax1.plot(sorted_dist, rdr_shadow_mask, 'r', label='shadow')
-ax1.set_ylabel('Projected height')
-ax1.legend()
-ax2.plot(sorted_dist, sorted_elevation, 'k')
-ax2.plot(sorted_dist, terrain_shadow, 'r', label='shadow')
-ax2.set_ylabel('Terrain elevation')
-ax2.set_xlabel('Distance from projection plane')
-ax2.axis('equal')
 f.show()
