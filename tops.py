@@ -57,6 +57,8 @@ class Pair(object):
             orbit = root.xpath('component[@name="topsinsar"]/component[@name="reference"]/property[@name="orbit directory"]')[0].text,
             auxiliary = root.xpath('component[@name="topsinsar"]/component[@name="reference"]/property[@name="auxiliary data directory"]')[0].text,
             path = os.path.dirname(path),
+            polarization = root.xpath('component[@name="topsinsar"]/component[@name="reference"]/property[@name="polarization"]')[0].text
+            polarization = root.xpath('component[@name="topsinsar"]/component[@name="secondary"]/property[@name="polarization"]')[0].text
             unwrapper = root.xpath('component[@name="topsinsar"]/property[@name="unwrapper name"]')[0].text,
             unwrap = root.xpath('component[@name="topsinsar"]/property[@name="do unwrap"]')[0].text,
             az_looks = root.xpath('component[@name="topsinsar"]/property[@name="azimuth looks"]')[0].text,
@@ -65,7 +67,7 @@ class Pair(object):
             roi = root.xpath('component[@name="topsinsar"]/property[@name="region of interest"]')[0].text,
             bbox = root.xpath('component[@name="topsinsar"]/property[@name="geocode bounding box"]')[0].text,
             sensor = root.xpath('component[@name="topsinsar"]/property[@name="Sensor name"]')[0].text,
-            polarization = root.xpath('component[@name="topsinsar"]/property[@name="polarization"]')[0].text
+
             #dense_offsets = root.dense_offsets('component[@name="topsinsar"]/property[@name="do denseOffsets"]')[0].text
         )
 
@@ -76,6 +78,7 @@ class Pair(object):
                 dict(name='orbit directory', __text__=self.orbit),
                 dict(name='auxiliary data directory', __text__=self.auxiliary),
                 dict(name='safe', __text__=self.reference),
+                dict(name='polarization', __text__=self.reference),
                 dict(name='output directory', __text__='reference')]
             )
         secondary = dict(
@@ -84,6 +87,7 @@ class Pair(object):
                 dict(name='orbit directory', __text__=self.orbit),
                 dict(name='auxiliary data directory', __text__=self.auxiliary),
                 dict(name='safe', __text__=self.secondary),
+                dict(name='polarization', __text__=self.secondary),
                 dict(name='output directory', __text__='secondary')]
             )
         properties = [
@@ -110,9 +114,6 @@ class Pair(object):
         if self.dense_offsets:
             properties.append(dict(
                 name='do denseOffsets', __text__=str(self.dense_offsets)))
-        if self.polarization:
-            properties.append(dict(
-                name='polarization', __text__=str(self.polarization)))        
         tops_dict = dict(
             topsApp=dict(
                 component=dict(name='topsinsar',
