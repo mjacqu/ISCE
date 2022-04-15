@@ -24,10 +24,11 @@ class Pair(object):
         bbox (list): list of bounding box coordinates [S,N,W,E]
         sensor (str): default is 'SENTINEL1'
         dense_offsets (str): Default is False
+        polarization (str): Default is vv
     """
     def __init__(self, reference, secondary, path, orbit, auxiliary, swaths=None,
         unwrapper='snaphu_mcf', unwrap=True, az_looks=None, rng_looks=None,
-        dem=None, roi=None, bbox=None, sensor='SENTINEL1', dense_offsets=False):
+        dem=None, roi=None, bbox=None, sensor='SENTINEL1', dense_offsets=False, polarization='vv'):
         self.path = os.path.join(path, safe2date(reference).strftime('%Y%m%d') + '_' + safe2date(secondary).strftime('%Y%m%d'))
         self.reference = reference
         self.secondary = secondary
@@ -37,12 +38,13 @@ class Pair(object):
         self.auxiliary = auxiliary
         self.unwrap = unwrap
         self.az_looks = az_looks
-        self.rng_looks =rng_looks
+        self.rng_looks = rng_looks
         self.dem = dem
         self.roi = roi
         self.bbox = bbox
         self.sensor = sensor
         self.dense_offsets = dense_offsets
+        self.polarization = polarization
 
     @classmethod
     def from_path(cls, path):
@@ -62,7 +64,8 @@ class Pair(object):
             dem = root.xpath('component[@name="topsinsar"]/property[@name="demfilename"]')[0].text,
             roi = root.xpath('component[@name="topsinsar"]/property[@name="region of interest"]')[0].text,
             bbox = root.xpath('component[@name="topsinsar"]/property[@name="geocode bounding box"]')[0].text,
-            sensor = root.xpath('component[@name="topsinsar"]/property[@name="Sensor name"]')[0].text
+            sensor = root.xpath('component[@name="topsinsar"]/property[@name="Sensor name"]')[0].text,
+            polarization = root.xpath('component[@name="topsinsar"]/property[@name="polarization"]')[0].text
             #dense_offsets = root.dense_offsets('component[@name="topsinsar"]/property[@name="do denseOffsets"]')[0].text
         )
 
@@ -107,6 +110,9 @@ class Pair(object):
         if self.dense_offsets:
             properties.append(dict(
                 name='do denseOffsets', __text__=str(self.dense_offsets)))
+        if self.polarization:
+            properties.append(dict(
+                name='polarization', __text__=str(self.polarization)))        
         tops_dict = dict(
             topsApp=dict(
                 component=dict(name='topsinsar',
