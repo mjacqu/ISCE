@@ -26,9 +26,9 @@ class Pair(object):
         dense_offsets (str): Default is False
         polarization (str): Default is vv
     """
-    def __init__(self, reference, secondary, path, orbit, auxiliary, swaths=None,
+    def __init__(self, reference, secondary, path, orbit, auxiliary, polarization='vv', swaths=None,
         unwrapper='snaphu_mcf', unwrap=True, az_looks=None, rng_looks=None,
-        dem=None, roi=None, bbox=None, sensor='SENTINEL1', dense_offsets=False, polarization='vv'):
+        dem=None, roi=None, bbox=None, sensor='SENTINEL1', dense_offsets=False):
         self.path = os.path.join(path, safe2date(reference).strftime('%Y%m%d') + '_' + safe2date(secondary).strftime('%Y%m%d'))
         self.reference = reference
         self.secondary = secondary
@@ -36,6 +36,7 @@ class Pair(object):
         self.unwrapper = unwrapper
         self.orbit = orbit
         self.auxiliary = auxiliary
+        self.polarization = polarization
         self.unwrap = unwrap
         self.az_looks = az_looks
         self.rng_looks = rng_looks
@@ -44,7 +45,7 @@ class Pair(object):
         self.bbox = bbox
         self.sensor = sensor
         self.dense_offsets = dense_offsets
-        self.polarization = polarization
+
 
     @classmethod
     def from_path(cls, path):
@@ -78,7 +79,7 @@ class Pair(object):
                 dict(name='orbit directory', __text__=self.orbit),
                 dict(name='auxiliary data directory', __text__=self.auxiliary),
                 dict(name='safe', __text__=self.reference),
-                dict(name='polarization', __text__=self.reference),
+                dict(name='polarization', __text__=self.polarization),
                 dict(name='output directory', __text__='reference')]
             )
         secondary = dict(
@@ -87,7 +88,7 @@ class Pair(object):
                 dict(name='orbit directory', __text__=self.orbit),
                 dict(name='auxiliary data directory', __text__=self.auxiliary),
                 dict(name='safe', __text__=self.secondary),
-                dict(name='polarization', __text__=self.secondary),
+                dict(name='polarization', __text__=self.polarization),
                 dict(name='output directory', __text__='secondary')]
             )
         properties = [
