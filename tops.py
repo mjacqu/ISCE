@@ -156,7 +156,7 @@ def safe2date(path):
     """
     Parse datetime from each safe-file path.
     """
-    m = re.search(r'V_([0-9]{8}T[0-9]{6})_([0-9]{8}T[0-9]{6})_', path)
+    m = re.search(r'[A-Z]{3}_([0-9]{8}T[0-9]{6})_([0-9]{8}T[0-9]{6})_', path)
     if len(m.groups()) == 2:
         start = datetime.datetime.strptime(m.group(1), '%Y%m%dT%H%M%S')
         end = datetime.datetime.strptime(m.group(2), '%Y%m%dT%H%M%S')
