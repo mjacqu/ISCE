@@ -12,6 +12,8 @@ import earthpy.spatial as es
 import earthpy.plot as ep
 import typing
 import scipy.interpolate
+import richdem
+
 
 '''
 Outline:
@@ -126,41 +128,28 @@ def calc_layover_distance(theta, rot_dem, cell_size):
     d = dist - l
     return d * np.sin(beta)
 
-'''
-# OLD PLOTTING CODE THAT MIGHT BE USEFUL
+def calc_foreshortening(path, heading, incidence, orbit='ascending'):
+    '''
+    Find areas affected by foreshortening based.
 
-#Hillshade for plotting results onto
-# Open the DEM with Rasterio
-with rasterio.open(path) as src:
-    dtm = src.read(1)
-    # Set masked values to np.nan
-    dtm[dtm < 0] = np.nan
-
-
-hillshade = es.hillshade(dtm)
-
-oneline = np.full((dem.shape), 0)
-onemask = (y_rot >=201) & (y_rot<202) #| (y_rot >=208) & (y_rot<209) | (y_rot >=212) & (y_rot<213)
-oneind = np.flatnonzero(onemask)
-oneline.flat[oneind] = np.ones(oneind.shape)
-
-plt.ion()
-plt.figure()
-plt.imshow(hillshade, cmap='Greys_r')
-plt.imshow(vis_reg, alpha = 0.6)
-#plt.imshow(oneline, alpha=0.2)
-
-dist = x_rot[onemask]
-d_sort = np.argsort(dist)
-d = dist[d_sort]*cell_size
-h_los = dem[onemask][d_sort]
-p_height = calc_projected_height(los_reprojected[0], d, h_los)
-vis = p_height>=np.maximum.accumulate(p_height)
-
-plt.figure()
-plt.plot(d, h_los, 'b')
-plt.scatter(d, h_los, color='k')
-plt.scatter(d[~vis], h_los[~vis], color='r')
-plt.plot(d[1:-1], smooth, 'g')
-plt.axis('equal')
-'''
+    Parameters:
+    --------------
+    dem: str
+        Path to digital elevation model in a local coordinate system (m)
+    heading: float
+        Satellite heading direction clockwise from north
+    incidence: ndarray
+        Raster with incidence angle positive down from vertical.
+    orbit: str
+        'ascending' or 'descending'
+    '''
+    # calculate slope and aspect of DEM
+    dem = richdem.LoadGDAL(path)
+    slope_deg = richdem.TerrainAttribute(dem, attrib='slope_degrees')
+    aspect = richdem.TerrainAttribute(dem, attrib='aspect')
+    if orbit=='ascending':
+        A = np.radians(aspect + heading + 180)
+    if orbit=='descending':
+        A = np.radians(aspect - heading)
+    R = np.sin(np.median(incidence)-np.radians(slope_deg)*np.sin(A))
+    return np.ma.masked_outside(R, 0, 0.4)
