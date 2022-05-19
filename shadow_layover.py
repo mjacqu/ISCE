@@ -8,7 +8,6 @@ import shadow_functions
 import insarhelpers
 from osgeo import gdal
 import scipy.signal
-import richdem
 #from mpmath import *
 import rasterio
 import earthpy
@@ -16,6 +15,7 @@ import earthpy.spatial as es
 import earthpy.plot as ep
 import matplotlib.pyplot as plt
 from matplotlib import colors
+import richdem
 
 
 '''
@@ -40,6 +40,7 @@ _: Look direction clockwise from NORTH (normal to γ)
 ifg = interferogram.Interferogram(
     path ='/Volumes/Science/SpitzerStein/testdata/20151006_20151018'
     #path='/Users/mistral/Documents/ETHZ/Science/SpitzerStein/testdata/20151006_20151018'
+    #path = '/Volumes/Science/ChamoliSAR/results/A56/20200802_20200814'
 )
 
 look_direction = np.median(ifg.los[1])*-1
@@ -49,8 +50,9 @@ heading = look_direction + 90
 
 # 2. Input: DEM
 #Spitzer Stein DEM (note: needs to be in meters for slope calculation to work)
-path = '/Users/mistral/Documents/ETHZ/Science/SpitzerStein/kandersteg10m_crop.tif'
+path = '/Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/kandersteg10m.tif'
 #path = '/Volumes/Science/LudovicArolla/SurfaceElevation_ArollaCrop.tif'
+#path = '/Volumes/Science/ChamoliSAR/HiMAT-DEM/Chamoli_Sept2015_8m_crop_gapfill.tif'
 dem = richdem.LoadGDAL(path)
 cell_size = dem.geotransform[1]
 
@@ -67,30 +69,96 @@ h_p = shadow_functions.calc_projected_height(np.median(ifg.los[0]), prime_array,
 rc = shadow_functions.calc_layover_distance(np.median(ifg.los[0]), prime_array, cell_size)
 vis = h_p >= np.fmax.accumulate(h_p, axis=1)
 vis_reg = shadow_functions.rotate_array_inverse(vis, x_prime, y_prime)
+vis_reg[vis_reg>=1] = np.nan
 #layover 1 (search for maximum from left to right)
 layover1 = rc >= np.fmax.accumulate(rc, axis=1)
 lay1_reg = shadow_functions.rotate_array_inverse(layover1, x_prime, y_prime)
+lay1_reg[lay1_reg>=1] = np.nan
 #layover 2 (search for minimum from right to left)
-layover2 = rc >= np.fmin.accumulate(np.flip(rc), axis=1)
-lay2_reg = shadow_functions.rotate_array_inverse(layover2, x_prime, y_prime)
+layover2 = np.fliplr(rc) <= np.fmin.accumulate(np.fliplr(rc), axis=1)
+lay2_reg = shadow_functions.rotate_array_inverse(np.fliplr(layover2), x_prime, y_prime)
+lay2_reg[lay2_reg>=1] = np.nan
+
+
+#Foreshortening following Cigna et al. compression factor analysis:
+fs = shadow_functions.calc_foreshortening(path, heading, ifg.los[0], orbit='ascending')
+
+with rasterio.open(path) as src:
+    dtm = src.read(1)
+    # Set masked values to np.nan
+    dtm[dtm < 0] = np.nan
+
+hillshade = es.hillshade(dtm)
+
+
+# measureable velocity
+slope_deg = richdem.TerrainAttribute(dem, attrib='slope_degrees')
+aspect = richdem.TerrainAttribute(dem, attrib='aspect')
+
+azi_rot = lp.rotate_azimuth(np.median(ifg.los[1]), direction = 'cc')
+target_to_platform = lp.pol2cart(azi_rot, np.median(ifg.los[0]))
+p2t = lp.reverse_vector(target_to_platform)
+
+aspect_rotated = lp.rotate_azimuth(scipy.signal.medfilt(aspect, 11))
+vert_slope = lp.slope_from_vertical(scipy.signal.medfilt(slope_deg, 11))
+slope_vectors = lp.pol2cart(aspect_rotated, vert_slope)
+
+delta = lp.compute_delta(slope_vectors, p2t)
+
+los_unity = np.ones(dem.shape)
+prop_def = los_unity *np.cos(delta)
+
+
 
 #plot results
-# plt.figure()
-# plt.imshow(dem)
-#
-# plt.figure()
-# plt.imshow(prime_array)
-#
-# plt.figure()
-# plt.imshow(vis)
-#plt.figure()
-plt.imshow(hillshade, cmap='Greys_r')
-plt.imshow(lay2_reg, alpha = 0.7)
-plt.show()
 
-plt.plot(rc[100,:])
-plt.imshow(rc[rc==10])
-# old stuff below
+cmap_shadow = colors.ListedColormap(['k'])
+cmap_lay1 = colors.ListedColormap(['red'])
+cmap_lay2 = colors.ListedColormap(['orange'])
+cmap_foreshortening = colors.ListedColormap(['Gold'])
+
+
+f, ax = plt.subplots()
+ax.imshow(hillshade, cmap='Greys_r', zorder=0)
+ax.imshow(vis_reg, alpha=0.95, cmap=cmap_shadow, zorder=10)
+ax.imshow(lay1_reg, alpha=0.95, cmap=cmap_lay1, zorder=11)
+ax.imshow(lay2_reg, alpha=0.95, cmap=cmap_lay2, zorder=12)
+ax.imshow(fs, alpha=0.95, cmap=cmap_foreshortening, zorder=4)
+v_rel = ax.imshow(prop_def, alpha=0.95, zorder=1, cmap='Blues')
+f.colorbar(v_rel)
+#plt.imshow(layover, alpha=0.95)
+f.show()
+
+
+
+
+#synthetic example for layover 1 and 2:
+h_t = np.array([1,1,1,1,1,1,1,1,2,4,8,16,32,64,70,75,78,75,72,69,66,63,60,57,54,51,48,47,46,45,44,44,44,44,44,44,44,44])
+
+beta = np.radians(90 - np.median(ifg.los[0])) #inclination of plane relative to horizontal
+l = h_t * np.tan(np.radians(np.median(ifg.los[0])))
+dist = np.indices(h_t.shape)[0]*10
+d = dist - l
+rc = d * np.sin(beta)
+
+layover1 = rc >= np.fmax.accumulate(rc)
+layover2 = np.flip(rc) <= np.fmin.accumulate(np.flip(rc))
+
+
+plt.figure()
+plt.plot(dist, rc, label='rc', zorder=0)
+plt.plot(dist, h_t, label='terrain', zorder=1)
+plt.plot(dist[~layover1], h_t[~layover1], label='layover1', zorder=2)
+#plt.plot(dist, np.flip(rc), label='flip rc')
+plt.plot(dist[np.flip(~layover2)], h_t[np.flip(layover2)], label='layover2', zorder=3)
+#plt.plot(dist[~layover2], h_t[~layover2])
+plt.legend()
+
+plt.figure()
+plt.plot(np.flip(rc))
+plt.plot(np.fmin.accumulate(np.flip(rc)))
+
+
 
 # calculate slope and aspect of DEM
 slope_deg = richdem.TerrainAttribute(dem, attrib='slope_degrees')
