@@ -128,7 +128,7 @@ def calc_layover_distance(theta, rot_dem, cell_size):
     d = dist - l
     return d * np.sin(beta)
 
-def calc_foreshortening(path, heading, incidence, orbit='ascending'):
+def calc_foreshortening(path, heading, incidence, orbit='ascending', fs_threshold=0.4):
     '''
     Find areas affected by foreshortening based.
 
@@ -152,4 +152,4 @@ def calc_foreshortening(path, heading, incidence, orbit='ascending'):
     if orbit=='descending':
         A = np.radians(aspect - heading)
     R = np.sin(np.median(incidence)-np.radians(slope_deg)*np.sin(A))
-    return np.ma.masked_outside(R, 0, 0.4)
+    return np.ma.masked_outside(R, 0, fs_threshold)
