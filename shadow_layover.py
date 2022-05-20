@@ -104,11 +104,9 @@ aspect_rotated = lp.rotate_azimuth(scipy.signal.medfilt(aspect, 11))
 vert_slope = lp.slope_from_vertical(scipy.signal.medfilt(slope_deg, 11))
 slope_vectors = lp.pol2cart(aspect_rotated, vert_slope)
 
-delta = lp.compute_delta(slope_vectors, p2t)
-
-los_unity = np.ones(dem.shape)
-prop_def = los_unity *np.cos(delta)
-
+p2t_3d = np.dstack([np.asarray(i) for i in p2t])
+slope_vec_3d = np.dstack([np.asarray(i) for i in slope_vectors])
+prop_def = np.abs(np.sum(p2t_3d*slope_vec_3d, axis = 2)) #just the dot-product of the two vectors as scaling factor as proposed by Handwerger
 
 
 #plot results
