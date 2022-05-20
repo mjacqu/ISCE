@@ -38,9 +38,10 @@ _: Look direction clockwise from NORTH (normal to γ)
 #look direction --> either from ifg or manual entry
 #load radar data
 ifg = interferogram.Interferogram(
-    path ='/Volumes/Science/SpitzerStein/testdata/20151006_20151018'
+    #path ='/Volumes/Science/SpitzerStein/testdata/20151006_20151018'
     #path='/Users/mistral/Documents/ETHZ/Science/SpitzerStein/testdata/20151006_20151018'
     #path = '/Volumes/Science/ChamoliSAR/results/A56/20200802_20200814'
+    path='/scratch-third/mylenej/radar/SpitzerStein/results/asc_88/20151006_20151018'
 )
 
 look_direction = np.median(ifg.los[1])*-1
@@ -50,8 +51,8 @@ heading = look_direction + 90
 
 # 2. Input: DEM
 #Spitzer Stein DEM (note: needs to be in meters for slope calculation to work)
-path = '/Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/kandersteg10m.tif'
-#path = '/Volumes/Science/LudovicArolla/SurfaceElevation_ArollaCrop.tif'
+#path = '/Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/kandersteg10m.tif'
+path = '/scratch-second/mylenej/Projects/Kandersteg/kandersteg10m.tif'
 #path = '/Volumes/Science/ChamoliSAR/HiMAT-DEM/Chamoli_Sept2015_8m_crop_gapfill.tif'
 dem = richdem.LoadGDAL(path)
 cell_size = dem.geotransform[1]
