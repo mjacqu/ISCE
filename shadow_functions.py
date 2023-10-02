@@ -130,7 +130,7 @@ def calc_layover_distance(theta, rot_dem, cell_size):
 
 def calc_foreshortening(path, heading, incidence, orbit='ascending'):
     '''
-    Find areas affected by foreshortening based.
+    Find areas affected by foreshortening based on dem.
 
     Parameters:
     --------------
