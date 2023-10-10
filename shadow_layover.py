@@ -38,9 +38,10 @@ _: Look direction clockwise from NORTH (normal to γ)
 #look direction --> either from ifg or manual entry
 #load radar data
 ifg = interferogram.Interferogram(
-    path ='/Volumes/Science/SpitzerStein/testdata/20151006_20151018'
+    #path ='/Volumes/Science/SpitzerStein/testdata/20151006_20151018'
     #path='/Users/mistral/Documents/ETHZ/Science/SpitzerStein/testdata/20151006_20151018'
     #path = '/Volumes/Science/ChamoliSAR/results/A56/20200802_20200814'
+    path='/scratch-third/mylenej/radar/SpitzerStein/results/asc_88/20151006_20151018'
 )
 
 look_direction = np.median(ifg.los[1])*-1
@@ -50,8 +51,8 @@ heading = look_direction + 90
 
 # 2. Input: DEM
 #Spitzer Stein DEM (note: needs to be in meters for slope calculation to work)
-path = '/Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/kandersteg10m.tif'
-#path = '/Volumes/Science/LudovicArolla/SurfaceElevation_ArollaCrop.tif'
+#path = '/Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/kandersteg10m.tif'
+path = '/scratch-second/mylenej/Projects/Kandersteg/kandersteg10m.tif'
 #path = '/Volumes/Science/ChamoliSAR/HiMAT-DEM/Chamoli_Sept2015_8m_crop_gapfill.tif'
 dem = richdem.LoadGDAL(path)
 cell_size = dem.geotransform[1]
@@ -103,11 +104,9 @@ aspect_rotated = lp.rotate_azimuth(scipy.signal.medfilt(aspect, 11))
 vert_slope = lp.slope_from_vertical(scipy.signal.medfilt(slope_deg, 11))
 slope_vectors = lp.pol2cart(aspect_rotated, vert_slope)
 
-delta = lp.compute_delta(slope_vectors, p2t)
-
-los_unity = np.ones(dem.shape)
-prop_def = los_unity *np.cos(delta)
-
+p2t_3d = np.dstack([np.asarray(i) for i in p2t])
+slope_vec_3d = np.dstack([np.asarray(i) for i in slope_vectors])
+prop_def = np.abs(np.sum(p2t_3d*slope_vec_3d, axis = 2)) #just the dot-product of the two vectors as scaling factor as proposed by Handwerger
 
 
 #plot results

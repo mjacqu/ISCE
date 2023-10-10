@@ -3,7 +3,7 @@ import os
 import numpy as np
 sys.path.append('./')
 import interferogram
-import richdem
+import xdem
 import matplotlib.pyplot as plt
 #for viz
 import rasterio
@@ -12,7 +12,6 @@ import earthpy.spatial as es
 import earthpy.plot as ep
 import typing
 import scipy.interpolate
-import richdem
 
 
 '''
@@ -128,7 +127,7 @@ def calc_layover_distance(theta, rot_dem, cell_size):
     d = dist - l
     return d * np.sin(beta)
 
-def calc_foreshortening(path, heading, incidence, orbit='ascending'):
+def calc_foreshortening(path, heading, incidence, orbit='ascending', fs_threshold=0.4):
     '''
     Find areas affected by foreshortening based on dem.
 
@@ -144,12 +143,12 @@ def calc_foreshortening(path, heading, incidence, orbit='ascending'):
         'ascending' or 'descending'
     '''
     # calculate slope and aspect of DEM
-    dem = richdem.LoadGDAL(path)
-    slope_deg = richdem.TerrainAttribute(dem, attrib='slope_degrees')
-    aspect = richdem.TerrainAttribute(dem, attrib='aspect')
+    dem = xdem.DEM(path)
+    slope_deg = xdem.terrain.slope(dem.data, resolution=dem.res)
+    aspect = xdem.terrain.aspect(dem)
     if orbit=='ascending':
-        A = np.radians(aspect + heading + 180)
+        A = np.radians(aspect.data + heading + 180)
     if orbit=='descending':
-        A = np.radians(aspect - heading)
-    R = np.sin(np.median(incidence)-np.radians(slope_deg)*np.sin(A))
-    return np.ma.masked_outside(R, 0, 0.4)
+        A = np.radians(aspect.data - heading)
+    R = np.sin(np.median(incidence)-np.radians(slope_deg.data)*np.sin(A))
+    return np.ma.masked_outside(R, 0, fs_threshold)
