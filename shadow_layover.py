@@ -3,6 +3,7 @@ sys.path.append('../MudCreek')
 import los_projection as lp
 import numpy as np
 sys.path.append('./')
+import xdem
 import interferogram
 import shadow_functions
 import insarhelpers
@@ -15,7 +16,7 @@ import earthpy.spatial as es
 import earthpy.plot as ep
 import matplotlib.pyplot as plt
 from matplotlib import colors
-import richdem
+
 
 
 '''
@@ -38,10 +39,10 @@ _: Look direction clockwise from NORTH (normal to γ)
 #look direction --> either from ifg or manual entry
 #load radar data
 ifg = interferogram.Interferogram(
-    #path ='/Volumes/Science/SpitzerStein/testdata/20151006_20151018'
+    path ='/Volumes/Science/SpitzerStein/testdata/20151006_20151018'
     #path='/Users/mistral/Documents/ETHZ/Science/SpitzerStein/testdata/20151006_20151018'
     #path = '/Volumes/Science/ChamoliSAR/results/A56/20200802_20200814'
-    path='/scratch-third/mylenej/radar/SpitzerStein/results/asc_88/20151006_20151018'
+    #path='/scratch-third/mylenej/radar/SpitzerStein/results/asc_88/20151006_20151018'
 )
 
 look_direction = np.median(ifg.los[1])*-1
@@ -51,11 +52,12 @@ heading = look_direction + 90
 
 # 2. Input: DEM
 #Spitzer Stein DEM (note: needs to be in meters for slope calculation to work)
-#path = '/Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/kandersteg10m.tif'
-path = '/scratch-second/mylenej/Projects/Kandersteg/kandersteg10m.tif'
+path = '/Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/kandersteg10m.tif'
+#path = '/scratch-second/mylenej/Projects/Kandersteg/kandersteg10m.tif'
 #path = '/Volumes/Science/ChamoliSAR/HiMAT-DEM/Chamoli_Sept2015_8m_crop_gapfill.tif'
-dem = richdem.LoadGDAL(path)
-cell_size = dem.geotransform[1]
+dem = xdem.DEM(path)
+#dem = richdem.LoadGDAL(path)
+cell_size = dem.res[0]
 
 #reproject los parameters to the extent of the dem (not used right now because of artefacts in the los data)
 reprojected = insarhelpers.reproject_to_target_raster(
@@ -65,7 +67,7 @@ reprojected = insarhelpers.reproject_to_target_raster(
 los_reprojected = reprojected.ReadAsArray() #this are now the look angle and incidence angles reprojected to CH1903 LV95 (same as DEM)
 
 # run the functions
-prime_array, x_prime, y_prime = shadow_functions.rotate_array(dem, angle=heading)
+prime_array, x_prime, y_prime = shadow_functions.rotate_array(dem.data, angle=heading)
 h_p = shadow_functions.calc_projected_height(np.median(ifg.los[0]), prime_array, cell_size)
 rc = shadow_functions.calc_layover_distance(np.median(ifg.los[0]), prime_array, cell_size)
 vis = h_p >= np.fmax.accumulate(h_p, axis=1)
@@ -84,24 +86,19 @@ lay2_reg[lay2_reg>=1] = np.nan
 #Foreshortening following Cigna et al. compression factor analysis:
 fs = shadow_functions.calc_foreshortening(path, heading, ifg.los[0], orbit='ascending')
 
-with rasterio.open(path) as src:
-    dtm = src.read(1)
-    # Set masked values to np.nan
-    dtm[dtm < 0] = np.nan
-
-hillshade = es.hillshade(dtm)
+hillshade = xdem.terrain.hillshade(dem, azimuth=315.0, altitude=45.0)
 
 
 # measureable velocity
-slope_deg = richdem.TerrainAttribute(dem, attrib='slope_degrees')
-aspect = richdem.TerrainAttribute(dem, attrib='aspect')
+slope_deg = xdem.terrain.slope(dem, resolution=dem.res)
+aspect = xdem.terrain.aspect(dem)
 
 azi_rot = lp.rotate_azimuth(np.median(ifg.los[1]), direction = 'cc')
 target_to_platform = lp.pol2cart(azi_rot, np.median(ifg.los[0]))
 p2t = lp.reverse_vector(target_to_platform)
 
-aspect_rotated = lp.rotate_azimuth(scipy.signal.medfilt(aspect, 11))
-vert_slope = lp.slope_from_vertical(scipy.signal.medfilt(slope_deg, 11))
+aspect_rotated = lp.rotate_azimuth(scipy.signal.medfilt(aspect.data, 11))
+vert_slope = lp.slope_from_vertical(scipy.signal.medfilt(slope_deg.data, 11))
 slope_vectors = lp.pol2cart(aspect_rotated, vert_slope)
 
 p2t_3d = np.dstack([np.asarray(i) for i in p2t])
@@ -118,12 +115,12 @@ cmap_foreshortening = colors.ListedColormap(['Gold'])
 
 
 f, ax = plt.subplots()
-ax.imshow(hillshade, cmap='Greys_r', zorder=0)
+ax.imshow(hillshade.data, cmap='Greys_r', zorder=0)
 ax.imshow(vis_reg, alpha=0.95, cmap=cmap_shadow, zorder=10)
 ax.imshow(lay1_reg, alpha=0.95, cmap=cmap_lay1, zorder=11)
 ax.imshow(lay2_reg, alpha=0.95, cmap=cmap_lay2, zorder=12)
 ax.imshow(fs, alpha=0.95, cmap=cmap_foreshortening, zorder=4)
-v_rel = ax.imshow(prop_def, alpha=0.95, zorder=1, cmap='Blues')
+v_rel = ax.imshow(prop_def, alpha=0.8, zorder=1, cmap='Blues')
 f.colorbar(v_rel)
 #plt.imshow(layover, alpha=0.95)
 f.show()
@@ -142,7 +139,6 @@ rc = d * np.sin(beta)
 
 layover1 = rc >= np.fmax.accumulate(rc)
 layover2 = np.flip(rc) <= np.fmin.accumulate(np.flip(rc))
-
 
 plt.figure()
 plt.plot(dist, rc, label='rc', zorder=0)
