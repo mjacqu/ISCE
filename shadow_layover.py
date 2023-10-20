@@ -1,5 +1,4 @@
 import sys
-sys.path.append('../MudCreek')
 import los_projection as lp
 import numpy as np
 sys.path.append('./')
@@ -9,13 +8,9 @@ import shadow_functions
 import insarhelpers
 from osgeo import gdal
 import scipy.signal
-#from mpmath import *
-import rasterio
-import earthpy
-import earthpy.spatial as es
-import earthpy.plot as ep
 import matplotlib.pyplot as plt
 from matplotlib import colors
+import rasterio
 
 
 
@@ -39,8 +34,8 @@ _: Look direction clockwise from NORTH (normal to γ)
 #look direction --> either from ifg or manual entry
 #load radar data
 ifg = interferogram.Interferogram(
-    path ='/Volumes/Science/SpitzerStein/testdata/20151006_20151018'
-    #path='/Users/mistral/Documents/ETHZ/Science/SpitzerStein/testdata/20151006_20151018'
+    #path ='/Volumes/Science/SpitzerStein/testdata/20151006_20151018'
+    path='/Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/testdata/20180716_20180728'
     #path = '/Volumes/Science/ChamoliSAR/results/A56/20200802_20200814'
     #path='/scratch-third/mylenej/radar/SpitzerStein/results/asc_88/20151006_20151018'
 )
@@ -56,15 +51,16 @@ path = '/Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/kandersteg10m.tif'
 #path = '/scratch-second/mylenej/Projects/Kandersteg/kandersteg10m.tif'
 #path = '/Volumes/Science/ChamoliSAR/HiMAT-DEM/Chamoli_Sept2015_8m_crop_gapfill.tif'
 dem = xdem.DEM(path)
-#dem = richdem.LoadGDAL(path)
 cell_size = dem.res[0]
 
+'''
 #reproject los parameters to the extent of the dem (not used right now because of artefacts in the los data)
 reprojected = insarhelpers.reproject_to_target_raster(
     source_path = '/Volumes/Science/SpitzerStein/testdata/20151006_20151018/merged/los.rdr.geo',
     target = dem,
     target_srs = 'EPSG:2056')
 los_reprojected = reprojected.ReadAsArray() #this are now the look angle and incidence angles reprojected to CH1903 LV95 (same as DEM)
+'''
 
 # run the functions
 prime_array, x_prime, y_prime = shadow_functions.rotate_array(dem.data, angle=heading)
@@ -86,6 +82,7 @@ lay2_reg[lay2_reg>=1] = np.nan
 #Foreshortening following Cigna et al. compression factor analysis:
 fs = shadow_functions.calc_foreshortening(path, heading, ifg.los[0], orbit='ascending')
 
+
 hillshade = xdem.terrain.hillshade(dem, azimuth=315.0, altitude=45.0)
 
 
@@ -93,8 +90,8 @@ hillshade = xdem.terrain.hillshade(dem, azimuth=315.0, altitude=45.0)
 slope_deg = xdem.terrain.slope(dem, resolution=dem.res)
 aspect = xdem.terrain.aspect(dem)
 
-azi_rot = lp.rotate_azimuth(np.median(ifg.los[1]), direction = 'cc')
-target_to_platform = lp.pol2cart(azi_rot, np.median(ifg.los[0]))
+azi_rot = lp.rotate_azimuth(np.median(ifg.los[1]), direction = 'cc') #azimuth rotated to cw from E (x-axis)
+target_to_platform = lp.pol2cart(azi_rot, np.median(ifg.los[0])) 
 p2t = lp.reverse_vector(target_to_platform)
 
 aspect_rotated = lp.rotate_azimuth(scipy.signal.medfilt(aspect.data, 11))
@@ -103,7 +100,8 @@ slope_vectors = lp.pol2cart(aspect_rotated, vert_slope)
 
 p2t_3d = np.dstack([np.asarray(i) for i in p2t])
 slope_vec_3d = np.dstack([np.asarray(i) for i in slope_vectors])
-prop_def = np.abs(np.sum(p2t_3d*slope_vec_3d, axis = 2)) #just the dot-product of the two vectors as scaling factor as proposed by Handwerger
+prop_def = np.sum(p2t_3d*slope_vec_3d, axis = 2) #just the dot-product of the two vectors as scaling factor as proposed by Handwerger #note from 10-2023: this is a dot-product but Al does not use a dot product...
+
 
 
 #plot results
@@ -120,12 +118,71 @@ ax.imshow(vis_reg, alpha=0.95, cmap=cmap_shadow, zorder=10)
 ax.imshow(lay1_reg, alpha=0.95, cmap=cmap_lay1, zorder=11)
 ax.imshow(lay2_reg, alpha=0.95, cmap=cmap_lay2, zorder=12)
 ax.imshow(fs, alpha=0.95, cmap=cmap_foreshortening, zorder=4)
-v_rel = ax.imshow(prop_def, alpha=0.8, zorder=1, cmap='Blues')
+v_rel = ax.imshow(prop_def, alpha=0.8, zorder=1, cmap='seismic')
 f.colorbar(v_rel)
 #plt.imshow(layover, alpha=0.95)
 f.show()
 
+#aspect vs visible deformation for slopes >30°
+plt.scatter(aspect.data[slope_deg.data>20], prop_def[slope_deg.data>20], s=0.0001)
+plt.show()
 
+
+#save prop_def as geotiff
+
+meta = {
+    'driver': 'GTiff',
+    'dtype': 'float32',
+    'nodata': -9999,
+    'width': dem.shape[1],
+    'height': dem.shape[0],
+    'count': dem.count,
+    'crs': 'EPSG:2056',  # You should use the appropriate CRS for your data
+    'transform': dem.transform  # Define the transformation
+}
+
+with rasterio.open('output.tif', 'w', **meta) as dst:
+    dst.write(prop_def, 1) 
+
+
+#synthetic example for topography:
+synt_topo = np.zeros((100, 100))
+
+# Define the size of the pyramid base
+base_size = 100
+
+# Fill the array to create the pyramid
+for i in range(base_size):
+    synt_topo[i:100-i, i:100-i] += 1
+
+# calculate prop_def for synthetic topography:
+#todo: creat synthetic look angle looking due east and 45° down
+azi_rot = [0]#azimuth rotated to cw from E (x-axis) --> directly east looking
+target_to_platform = lp.pol2cart(azi_rot, 45) 
+p2t = lp.reverse_vector(target_to_platform)
+
+synt_slope = xdem.terrain.slope(synt_topo, resolution=1)
+synt_aspect = xdem.terrain.aspect(synt_topo)
+
+synt_aspect_rotated = lp.rotate_azimuth(scipy.signal.medfilt(synt_aspect, 11))
+synt_vert_slope = lp.slope_from_vertical(scipy.signal.medfilt(synt_slope, 11))
+synt_slope_vectors = lp.pol2cart(synt_aspect_rotated, synt_vert_slope)
+
+p2t_3d = np.dstack([np.asarray(i) for i in p2t])
+slope_vec_3d = np.dstack([np.asarray(i) for i in synt_slope_vectors])
+synt_prop_def = np.sum(p2t_3d*slope_vec_3d, axis = 2)
+
+#Simple synthetic example:
+#radar vector:
+radar = lp.rotate_azimuth(-260, direction='cc'), 41
+radar = lp.pol2cart(radar)
+radar = lp.reverse_vector(radar)
+slope = lp.pol2cart(theta=0, phi=135)
+# np.asarray([1, 1, -1], dtype=float)
+# slope /= np.sqrt(np.sum(slope**2))
+projection = np.sum(np.asarray(radar) * np.asarray(slope))
+round(projection, 12)
+assert projection == slope[2]
 
 
 #synthetic example for layover 1 and 2:
@@ -153,7 +210,8 @@ plt.figure()
 plt.plot(np.flip(rc))
 plt.plot(np.fmin.accumulate(np.flip(rc)))
 
-
+'''
+#OLD STUFF
 
 # calculate slope and aspect of DEM
 slope_deg = richdem.TerrainAttribute(dem, attrib='slope_degrees')
@@ -247,3 +305,5 @@ ax2.imshow(np.ma.masked_array(dem, mask=facing_toward.mask))
 ax2.imshow(np.ma.masked_array(layover, mask=facing_toward.mask), cmap=cmap_red)
 ax2.imshow(np.ma.masked_array(shadow, mask=facing_away.mask), cmap=cmap_black)
 f.show()
+
+'''
