@@ -50,8 +50,8 @@ def rotate_azimuth(azi, direction = 'clockwise'):
             raise ValueError ('Clockwise azimuth must be positive from North')
         theta = (360-(azi-90))%360
     else:
-        theta = azi * -1
-        theta = (360-(azi-90))%360
+        theta_rot = azi * -1
+        theta = (360-(theta_rot-90))%360
     return theta
 
 
