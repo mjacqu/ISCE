@@ -174,13 +174,19 @@ synt_prop_def = np.sum(p2t_3d*slope_vec_3d, axis = 2)
 
 #Simple synthetic example:
 #radar vector:
-radar = lp.rotate_azimuth(-260, direction='cc'), 41
-radar = lp.pol2cart(radar)
+radar = lp.rotate_azimuth(-270, direction='cc')[0], 45
+radar = lp.pol2cart(*radar)
 radar = lp.reverse_vector(radar)
+radar = np.asarray(radar)
+np.sqrt(np.sum(radar**2))
+
 slope = lp.pol2cart(theta=0, phi=135)
+slope = np.asarray(slope)
+np.sqrt(np.sum(slope**2))
+
 # np.asarray([1, 1, -1], dtype=float)
 # slope /= np.sqrt(np.sum(slope**2))
-projection = np.sum(np.asarray(radar) * np.asarray(slope))
+projection = np.sum(radar * slope)
 round(projection, 12)
 assert projection == slope[2]
 
