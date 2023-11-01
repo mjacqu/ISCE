@@ -10,7 +10,7 @@ def delete_extras(dir):
 
 def reduce_merged(dir):
     dir_p = os.path.join(path, dir)
-    bashCommand = f'rm {dir_p}/merged/dem* {dir_p}/merged/topophase* {dir_p}/merged/filt_topophase.flat'
+    bashCommand = f'rm {dir_p}/merged/dem* {dir_p}/merged/topophase*'
     os.system(bashCommand)
 
 path = './'
