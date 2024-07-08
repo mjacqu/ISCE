@@ -12,16 +12,18 @@ import xarray as xr
 #from rasterio.warp import calculate_default_transform, reproject, Resampling
 #import pyproj
 
-#set path
-#path = '/Volumes/Science/SpitzerStein/asc_88'
-#path = '/Volumes/Science/SpitzerStein/desc_139'
-path = '/Volumes/Science/CCAMM/gmsi-production/coherence/coh_A088'
-
-
-# analyze temporal baselines
-dirs = os.listdir(path)
+################# functions ##############################
 
 def create_datetime_list(dirs):
+    '''
+    Parse temporal baselines from file names
+
+    Arguments:
+    dirs (list):    List of all files in path
+
+    Returns:
+    list    Temporal baselines (datetime objects) of all interferograms, parsed from filename in format YYYYMMDD_YYYYMMDD
+    '''
     # Define the regex pattern to extract dates
     pattern = re.compile(r'S1.(\d{8})_(\d{8}).cc.tif')
     # Create a list of datetime objects from the directory names
@@ -36,41 +38,86 @@ def create_datetime_list(dirs):
     datetime_deltas = [end - start for start, end in datetime_list]
     return datetime_deltas
 
+
 def delta_files(dirs, datetime_deltas, delta):
+    '''
+    Find all files that correspond to one temporal baseline
+
+    Arguments:
+    dirs (list):            List of all files in path
+    datetime_deltas (list): Corresponding list of datetime deltas
+    delta (int):            Temporal baseline in days
+
+    Returns:
+    list    List of paths to files with corresponding baselines
+    '''
     boolean = [d.days == delta for d in datetime_deltas]
     dt_dirs = [item for item, boolean in zip(dirs, boolean) if boolean]
     return dt_dirs
 
+# Function to read each raster as a dask array
+def read_raster_as_dask_array(file_path):
+    '''
+    Read raster as dask array
+
+    Arguments:
+    file_path (str):    Path to file
+
+    Return:
+    dask array  
+    '''
+    with rasterio.open(file_path) as src:
+        return da.from_array(src.read(1), chunks=(1024, 1024))
+    
+
+# Function to save out results to .tif
+
+def save_raster(output_file, metadata_source, result_array):
+    '''
+    Save new array to .tif with corresponding spatial metadata
+
+    Arguments:
+    output_file (str):      Filename for saving raster
+    metadata_source (str):  Path to .tif with same spatial extent
+    result_array (ndarray): Data array to be written to file as .tif
+
+    '''
+    output_file = output_file
+    with rasterio.open(metadata_source) as src:
+        meta = src.meta.copy()
+        meta.update(dtype=np.float32, count=1, nodata=-9999, compress='LZW')
+
+        with rasterio.open(output_file, 'w', **meta) as dst:
+            dst.write(result_array.compute(), 1)
+
+
+########################## processing ###############################
+#set path
+path = '/Volumes/Science/CCAMM/gmsi-production/coherence/coh_A088'
+vis_path = '/Volumes/Science/CCAMM/gmsi-production/visibility/A-088'
+################### compute coherence medians #######################
+
+# analyze temporal baselines
+dirs = os.listdir(path)
+
+# create list of all coherence files and extract temporal baselines
 datetime_list = create_datetime_list(dirs)
 b_temp = np.sort([d.days for d in np.unique(datetime_list)])
 
-raster_files = [os.path.join(path,f) for f in delta_files(dirs, datetime_list, b_temp[4])]
+for b in b_temp:
+    raster_files = [os.path.join(path,f) for f in delta_files(dirs, datetime_list, b)]
 
-############### calculating median with rasterio and dask  for memory efficiency ######################
-# Function to read each raster as a dask array
-def read_raster_as_dask_array(file_path):
-    with rasterio.open(file_path) as src:
-        return da.from_array(src.read(1), chunks=(1024, 1024))
+    # Read all rasters into a list of dask arrays
+    raster_arrays = [read_raster_as_dask_array(f) for f in raster_files]
 
-# Read all rasters into a list of dask arrays
-raster_arrays = [read_raster_as_dask_array(f) for f in raster_files]
+    stacked_array = da.stack(raster_arrays, axis=0)
+    median_array = da.mean(stacked_array, axis=0)
 
-stacked_array = da.stack(raster_arrays, axis=0)
-median_array = da.mean(stacked_array, axis=0)
-
-# To save the median array as a new raster file
-output_file = os.path.join(path, f'median_{b_temp[4]}_days.tif')
-with rasterio.open(raster_files[0]) as src:
-    meta = src.meta.copy()
-    meta.update(dtype=np.float32, count=1, compress='LZW')
-    
-    with rasterio.open(output_file, 'w', **meta) as dst:
-        dst.write(median_array.compute(), 1)
+    output_file = os.path.join(path, f'median_{b}_days.tif')
+    save_raster(output_file, raster_files[0], median_array)
 
 
-########### Now find the time when the coherence drops below 0.4 ########
-
-
+########### Now find the time when the coherence drops below 0.5 ########
 
 # Construct paths in right order (according to b_temp)
 median_raster_files = [os.path.join(path, f'median_{b}_days.tif') for b in b_temp]
@@ -105,25 +152,16 @@ drop_below_threshold = da.where(drop_below_threshold == 0, 100, drop_below_thres
 low_coh_mask = median_arrays[0] < 0.3
 
 # apply mask to whole stack:
-below_threshold_masked = da.where(low_coh_mask, np.nan, drop_below_threshold)
+coherence_decay = da.where(low_coh_mask, np.nan, drop_below_threshold)
 
-# Output file path for the result
-output_file = os.path.join(path, 'output_drop_below_threshold_v4_0.5.tif')
-
-# Write the result to a new raster file
-with rasterio.open(median_raster_files[0]) as src:
-    meta = src.meta.copy()
-    meta.update(dtype=np.float32, count=1, nodata=-9999, compress='LZW')
-    
-    with rasterio.open(output_file, 'w', **meta) as dst:
-        dst.write(below_threshold_masked.compute(), 1)
-
+output_file = os.path.join(path, 'coherence_decay.tif')
+save_raster(output_file, median_raster_files[0], coherence_decay)
 
 ############# Combine visibility and coherence decay ################
-vis_path = '/Volumes/Science/CCAMM/gmsi-production/visibility/A-088'
+
 
 # load visibility
-visibility = read_raster_as_dask_array(os.path.join(vis_path, 'A088.norm_scale_factor_masked.tif'))
+visibility = read_raster_as_dask_array(glob.glob(os.path.join(vis_path, '*.norm_scale_factor_masked.tif')))
 visibility_array = da.where(visibility == 0, np.nan, visibility)
 
 
@@ -135,7 +173,7 @@ low_coh_mask = median_arrays[0] < 0.3
 visibility_masked = da.where(low_coh_mask, np.nan, visibility_array)
 
 # load coherence decay
-coherence_decay = read_raster_as_dask_array(os.path.join(path, 'output_drop_below_threshold_v4_0.5.tif'))
+coherence_decay = read_raster_as_dask_array(os.path.join(path, 'coherence_decay.tif'))
 
 # mask of all areas in the coherence_decay that are nan in the visibility file:
 coherence_decay_masked = da.where(da.isnan(visibility_array), np.nan, coherence_decay)
@@ -151,14 +189,7 @@ gmsi_norm = (gmsi - min_value) / (max_value - min_value)
 
 # export
 # Output file path for the result
-output_file = os.path.join(path, 'gmsi_norm_v1.tif')
-
-# Write the result to a new raster file
-with rasterio.open(os.path.join(vis_path, 'A088.norm_scale_factor_masked.tif')) as src:
-    meta = src.meta.copy()
-    meta.update(dtype=np.float32, count=1, nodata=-9999, compress='LZW')
-    
-    with rasterio.open(output_file, 'w', **meta) as dst:
-        dst.write(gmsi_norm.compute(), 1)
-
+output_file = os.path.join(path, 'gmsi_norm.tif')
+metadata_source = glob.glob(os.path.join(vis_path, '*.norm_scale_factor_masked.tif'))
+save_raster(output_file, metadata_source, gmsi_norm)
 
