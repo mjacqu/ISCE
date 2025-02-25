@@ -7,8 +7,10 @@ import glob
 from datetime import datetime
 import re
 import rasterio
+from rasterio.warp import calculate_default_transform, reproject, Resampling
 import dask.array as da
-import xarray as xr
+#import xarray as xr
+import gc
 #from rasterio.warp import calculate_default_transform, reproject, Resampling
 #import pyproj
 
@@ -72,30 +74,33 @@ def read_raster_as_dask_array(file_path):
 
 # Function to save out results to .tif
 
-def save_raster(output_file, metadata_source, result_array):
+def save_raster(out_fn, metadata_source, result_array):
     '''
     Save new array to .tif with corresponding spatial metadata
 
     Arguments:
-    output_file (str):      Filename for saving raster
+    out_fn (str):      Path to file for saving raster
     metadata_source (str):  Path to .tif with same spatial extent
     result_array (ndarray): Data array to be written to file as .tif
 
     '''
-    output_file = output_file
+    
     with rasterio.open(metadata_source) as src:
         meta = src.meta.copy()
         meta.update(dtype=np.float32, count=1, nodata=-9999, compress='LZW')
 
-        with rasterio.open(output_file, 'w', **meta) as dst:
+        with rasterio.open(out_fn, 'w', **meta) as dst:
             dst.write(result_array.compute(), 1)
 
 
 ########################## processing ###############################
 #set path
-path = '/Volumes/Science/CCAMM/gmsi-production/coherence/coh_A088'
-vis_path = '/Volumes/Science/CCAMM/gmsi-production/visibility/A-088'
-################### compute coherence medians #######################
+
+path = '/Volumes/Science/CCAMM/gmsi-production/coherence/coh_D168'
+vis_path = '/Volumes/Science/CCAMM/visibility/D-168/'
+out_path = '/Volumes/Science/CCAMM/gmsi-production/coherence/coh_D168'
+
+################### parse datetimes #######################
 
 # analyze temporal baselines
 dirs = os.listdir(path)
@@ -104,7 +109,11 @@ dirs = os.listdir(path)
 datetime_list = create_datetime_list(dirs)
 b_temp = np.sort([d.days for d in np.unique(datetime_list)])
 
+################ compute coherence medians ######################
+#b_temp = [b_temps[4]]
+
 for b in b_temp:
+    print(f"processing {b} day baseline")
     raster_files = [os.path.join(path,f) for f in delta_files(dirs, datetime_list, b)]
 
     # Read all rasters into a list of dask arrays
@@ -113,9 +122,16 @@ for b in b_temp:
     stacked_array = da.stack(raster_arrays, axis=0)
     median_array = da.mean(stacked_array, axis=0)
 
-    output_file = os.path.join(path, f'median_{b}_days.tif')
+    print(f"writing out median_{b}_days.tif")
+    output_file = os.path.join(out_path, f'median_{b}_days.tif')
     save_raster(output_file, raster_files[0], median_array)
 
+# Clean up
+    print('cleaning up')
+    del raster_arrays
+    del stacked_array
+    del median_array
+    gc.collect()
 
 ########### Now find the time when the coherence drops below 0.5 ########
 
@@ -161,8 +177,11 @@ save_raster(output_file, median_raster_files[0], coherence_decay)
 
 
 # load visibility
-visibility = read_raster_as_dask_array(glob.glob(os.path.join(vis_path, '*.norm_scale_factor_masked.tif')))
-visibility_array = da.where(visibility == 0, np.nan, visibility)
+visibility = read_raster_as_dask_array(glob.glob(os.path.join(vis_path, '*.norm_scale_factor_masked.tif'))[0])
+visibility_zeros = da.where(visibility == 0, np.nan, visibility)
+visibility_neg_inf = da.where(visibility < -1000, np.nan, visibility_zeros)
+visibility_array = da.where(visibility_zeros>10e3, np.nan, visibility_neg_inf)
+
 
 
 # mask visibility based on coherence
@@ -190,6 +209,45 @@ gmsi_norm = (gmsi - min_value) / (max_value - min_value)
 # export
 # Output file path for the result
 output_file = os.path.join(path, 'gmsi_norm.tif')
-metadata_source = glob.glob(os.path.join(vis_path, '*.norm_scale_factor_masked.tif'))
+metadata_source = glob.glob(os.path.join(vis_path, '*.norm_scale_factor_masked.tif'))[0]
 save_raster(output_file, metadata_source, gmsi_norm)
 
+
+
+################### create composite gmsi map ##########################
+
+gmsi_path = '/Volumes/Science/CCAMM/gmsi-v1'
+
+gmsi_files = glob.glob(os.path.join(gmsi_path, 'gmsi_norm_*'))
+
+
+rasters = [read_raster_as_dask_array(p) for p in gmsi_files]
+
+# Compute the maximum value across all rasters
+max_raster = da.nanmax(da.stack(rasters, axis=0), axis=0)
+
+out_fn = os.path.join(gmsi_path, 'gmsi_composite.tif')
+save_raster(out_fn, gmsi_files[0], max_raster)
+
+
+# Determine which raster had the maximum value
+def get_index_with_max_value(rasters, max_raster):
+    # Create a dask array to store indices
+    indices = da.zeros(max_raster.shape, dtype=int)
+    
+    for i, raster in enumerate(rasters):
+        mask = (raster == max_raster)
+        indices = da.where(mask, i, indices)
+        
+    return indices
+
+index_raster = get_index_with_max_value(rasters, max_raster)
+index_raster_masked = da.where(da.isnan(max_raster), np.nan, index_raster)
+
+out_fn = os.path.join(gmsi_path, 'gmsi_orbit_index.tif')
+save_raster(out_fn, gmsi_files[0], index_raster_masked)
+
+
+del max_raster
+del index_raster
+gc.collect()
