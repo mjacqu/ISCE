@@ -150,8 +150,9 @@ for i, days in enumerate(b_temp):
 drop_below_threshold = da.where(drop_below_threshold == 0, 144, drop_below_threshold)
 
 # Mask nan-values (areas outside country borders or path)
-coverage_map = median_arrays[0] != 0.000
-co
+coverage_mask = median_arrays[0] == 0.000
+coherence_decay = da.where(coverage_mask, np.nan, drop_below_threshold)
+
 # mask areas in drop_below_threshold where 6-day coherence < 0.3
 # low_coh_mask = median_arrays[0] < 0.3 
 # apply mask to whole stack:
