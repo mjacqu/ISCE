@@ -2,7 +2,7 @@
 import os
 import numpy as np
 import glob
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 #from scipy.optimize import curve_fit
 from datetime import datetime
 import re
@@ -140,6 +140,7 @@ stacked_median_array = da.stack(median_arrays, axis=0)
 # Initialize an array to store the number of days at which the value drops below the threshold
 drop_below_threshold = da.zeros_like(median_arrays[0], dtype=np.float32)
 
+#days_until_drop = np.insert(b_temp,0,1)[:-1]
 # Iterate over time intervals and update the drop_below_threshold array
 for i, days in enumerate(b_temp):
     # Find where the value is below the threshold and hasn't already been marked
@@ -147,19 +148,22 @@ for i, days in enumerate(b_temp):
     drop_below_threshold = da.where(below_threshold, days, drop_below_threshold)
 
 # Convert cells that never drop below the threshold to a high value or NaN if preferred
-drop_below_threshold = da.where(drop_below_threshold == 0, 144, drop_below_threshold)
+drop_below_threshold = da.where(drop_below_threshold == 0, 192, drop_below_threshold)
 
 # Mask nan-values (areas outside country borders or path)
 coverage_mask = median_arrays[0] == 0.000
 coherence_decay = da.where(coverage_mask, np.nan, drop_below_threshold)
+
+#log-normalize the coherence_decay
+coherence_decay_norm = da.log2(coherence_decay)/np.log2(192)
 
 # mask areas in drop_below_threshold where 6-day coherence < 0.3
 # low_coh_mask = median_arrays[0] < 0.3 
 # apply mask to whole stack:
 #coherence_decay = da.where(low_coh_mask, np.nan, drop_below_threshold)
 
-output_file = os.path.join(output_path, 'coherence_decay_A088.tif')
-save_raster(output_file, median_raster_files[0], coherence_decay)
+output_file = os.path.join(output_path, 'coherence_decay_lognorm_A088.tif')
+save_raster(output_file, median_raster_files[0], coherence_decay_norm)
 
 ############# Combine visibility and coherence decay ################
 
@@ -180,9 +184,10 @@ low_coh_mask = median_arrays[0] < 0.3
 visibility_masked = da.where(low_coh_mask, np.nan, visibility_array)
 
 # load coherence decay
-coherence_decay = read_raster_as_dask_array(os.path.join(path, 'coherence_decay.tif'))
+coherence_decay = read_raster_as_dask_array(os.path.join(path, 'coherence_decay_lognorm_A088.tif'))
 
 # mask of all areas in the coherence_decay that are nan in the visibility file:
+# not needed?????
 coherence_decay_masked = da.where(da.isnan(visibility_array), np.nan, coherence_decay)
 
 # multiply and normalize
@@ -196,7 +201,7 @@ gmsi_norm = (gmsi - min_value) / (max_value - min_value)
 
 # export
 # Output file path for the result
-output_file = os.path.join(path, 'gmsi_norm.tif')
+output_file = os.path.join(output_path, 'gmsi_v2_lognorm_192.tif')
 metadata_source = glob.glob(os.path.join(vis_path, '*.norm_scale_factor_masked.tif'))[0]
 save_raster(output_file, metadata_source, gmsi_norm)
 
