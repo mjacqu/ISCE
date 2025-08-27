@@ -140,29 +140,29 @@ stacked_median_array = da.stack(median_arrays, axis=0)
 # Initialize an array to store the number of days at which the value drops below the threshold
 drop_below_threshold = da.zeros_like(median_arrays[0], dtype=np.float32)
 
-#days_until_drop = np.insert(b_temp,0,1)[:-1]
+days_until_drop = np.insert(b_temp,0,1)[:-1]
 # Iterate over time intervals and update the drop_below_threshold array
-for i, days in enumerate(b_temp):
+for i, days in enumerate(days_until_drop):
     # Find where the value is below the threshold and hasn't already been marked
     below_threshold = (stacked_median_array[i, :, :] < threshold) & (drop_below_threshold == 0)
     drop_below_threshold = da.where(below_threshold, days, drop_below_threshold)
 
 # Convert cells that never drop below the threshold to a high value or NaN if preferred
-drop_below_threshold = da.where(drop_below_threshold == 0, 192, drop_below_threshold)
+drop_below_threshold = da.where(drop_below_threshold == 0, 96, drop_below_threshold)
 
 # Mask nan-values (areas outside country borders or path)
 coverage_mask = median_arrays[0] == 0.000
 coherence_decay = da.where(coverage_mask, np.nan, drop_below_threshold)
 
 #log-normalize the coherence_decay
-coherence_decay_norm = da.log2(coherence_decay)/np.log2(192)
+coherence_decay_norm = da.log2(coherence_decay)/np.log2(96)
 
 # mask areas in drop_below_threshold where 6-day coherence < 0.3
 # low_coh_mask = median_arrays[0] < 0.3 
 # apply mask to whole stack:
 #coherence_decay = da.where(low_coh_mask, np.nan, drop_below_threshold)
 
-output_file = os.path.join(output_path, 'coherence_decay_lognorm_A088.tif')
+output_file = os.path.join(output_path, 'coherence_decay_lognorm_1_A088.tif')
 save_raster(output_file, median_raster_files[0], coherence_decay_norm)
 
 ############# Combine visibility and coherence decay ################
@@ -201,7 +201,7 @@ gmsi_norm = (gmsi - min_value) / (max_value - min_value)
 
 # export
 # Output file path for the result
-output_file = os.path.join(output_path, 'gmsi_v2_lognorm_192.tif')
+output_file = os.path.join(output_path, 'gmsi_v2_lognorm_1_A088.tif')
 metadata_source = glob.glob(os.path.join(vis_path, '*.norm_scale_factor_masked.tif'))[0]
 save_raster(output_file, metadata_source, gmsi_norm)
 
