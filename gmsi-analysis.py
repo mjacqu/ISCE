@@ -32,7 +32,7 @@ def preprocess_scalefactors(scale_f):
 dem = read_raster_as_dask_array('/Volumes/Science/CCAMM/CH-DEM/dhm200_gmsi_extent.tif')
 
 # load all visibility files
-vis_path = '/Volumes/Science/CCAMM/visibility'
+vis_path = '/Volumes/Science/CCAMM/gmsi-production/visibility'
 vis_files = glob.glob(os.path.join(vis_path, '*/*.norm_scale_factor_masked.tif'))
 ls_files = glob.glob(os.path.join(vis_path, '*/*.lsmap.tif'))
 
