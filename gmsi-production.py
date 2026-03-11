@@ -93,8 +93,9 @@ def save_raster(output_file, metadata_source, result_array):
 
 ########################## processing ###############################
 #set path
-path = '/Volumes/Science/CCAMM/gmsi-production/coherence/coh_A088'
-vis_path = '/Volumes/Science/CCAMM/gmsi-production/visibility/A-088'
+track = 'A117'
+path = f'/Volumes/Science/CCAMM/gmsi-production/coherence/coh_{track}'
+vis_path = f'/Volumes/Science/CCAMM/gmsi-production/visibility/vis_{track}'
 output_path = '/Volumes/Science/CCAMM/gmsi-v2'
 ################### compute coherence medians #######################
 
@@ -105,6 +106,7 @@ dirs = os.listdir(path)
 datetime_list = create_datetime_list(dirs)
 b_temp = np.sort([d.days for d in np.unique(datetime_list)])
 
+################# generate median coherence files ##################
 for b in b_temp:
     raster_files = [os.path.join(path,f) for f in delta_files(dirs, datetime_list, b)]
 
@@ -155,14 +157,14 @@ coverage_mask = median_arrays[0] == 0.000
 coherence_decay = da.where(coverage_mask, np.nan, drop_below_threshold)
 
 #log-normalize the coherence_decay
-coherence_decay_norm = da.log2(coherence_decay)/np.log2(96)
+coherence_decay_norm = da.log2(coherence_decay)/np.log2(b_temp[-1])
 
 # mask areas in drop_below_threshold where 6-day coherence < 0.3
 # low_coh_mask = median_arrays[0] < 0.3 
 # apply mask to whole stack:
 #coherence_decay = da.where(low_coh_mask, np.nan, drop_below_threshold)
 
-output_file = os.path.join(output_path, 'coherence_decay_lognorm_1_A088.tif')
+output_file = os.path.join(output_path, f'coherence_decay_lognorm_1_{track}.tif')
 save_raster(output_file, median_raster_files[0], coherence_decay_norm)
 
 ############# Combine visibility and coherence decay ################
@@ -178,20 +180,20 @@ visibility_array = da.where(visibility_zeros>10e3, np.nan, visibility_neg_inf)
 
 # mask visibility based on coherence
 # mask areas in drop_below_threshold where 6-day coherence < 0.3
-low_coh_mask = median_arrays[0] < 0.3
+#low_coh_mask = median_arrays[0] < 0.3
 
 # apply mask to whole stack:
-visibility_masked = da.where(low_coh_mask, np.nan, visibility_array)
+#visibility_masked = da.where(low_coh_mask, np.nan, visibility_array)
 
 # load coherence decay
-coherence_decay = read_raster_as_dask_array(os.path.join(path, 'coherence_decay_lognorm_A088.tif'))
+#coherence_decay = read_raster_as_dask_array(os.path.join(path, 'coherence_decay_lognorm_A088.tif'))
 
 # mask of all areas in the coherence_decay that are nan in the visibility file:
 # not needed?????
-coherence_decay_masked = da.where(da.isnan(visibility_array), np.nan, coherence_decay)
+#coherence_decay_masked = da.where(da.isnan(visibility_array), np.nan, coherence_decay)
 
 # multiply and normalize
-gmsi = coherence_decay * visibility_array
+gmsi = coherence_decay_norm * visibility_array
 # Normalize the product array to the range [0, 1]
 min_value = da.nanmin(gmsi).compute()
 max_value = da.nanmax(gmsi).compute()
@@ -201,7 +203,7 @@ gmsi_norm = (gmsi - min_value) / (max_value - min_value)
 
 # export
 # Output file path for the result
-output_file = os.path.join(output_path, 'gmsi_v2_lognorm_1_A088.tif')
+output_file = os.path.join(output_path, 'gmsi_v2_lognorm_1_A177.tif')
 metadata_source = glob.glob(os.path.join(vis_path, '*.norm_scale_factor_masked.tif'))[0]
 save_raster(output_file, metadata_source, gmsi_norm)
 
@@ -209,9 +211,9 @@ save_raster(output_file, metadata_source, gmsi_norm)
 
 ################### create composite gmsi map ##########################
 
-gmsi_path = '/Volumes/Science/CCAMM/gmsi-v1'
+gmsi_path = '/Volumes/Science/CCAMM/gmsi-v2'
 
-gmsi_files = glob.glob(os.path.join(gmsi_path, 'gmsi_norm_*'))
+gmsi_files = glob.glob(os.path.join(gmsi_path, 'gmsi_v2_lognorm_1_*'))
 
 
 rasters = [read_raster_as_dask_array(p) for p in gmsi_files]
@@ -219,7 +221,7 @@ rasters = [read_raster_as_dask_array(p) for p in gmsi_files]
 # Compute the maximum value across all rasters
 max_raster = da.nanmax(da.stack(rasters, axis=0), axis=0)
 
-out_fn = os.path.join(gmsi_path, 'gmsi_composite.tif')
+out_fn = os.path.join(output_path, 'gmsi_v2_composite.tif')
 save_raster(out_fn, gmsi_files[0], max_raster)
 
 
@@ -237,7 +239,7 @@ def get_index_with_max_value(rasters, max_raster):
 index_raster = get_index_with_max_value(rasters, max_raster)
 index_raster_masked = da.where(da.isnan(max_raster), np.nan, index_raster)
 
-out_fn = os.path.join(gmsi_path, 'gmsi_orbit_index.tif')
+out_fn = os.path.join(output_path, 'gmsi_v2_orbit_index.tif')
 save_raster(out_fn, gmsi_files[0], index_raster_masked)
 
 
