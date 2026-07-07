@@ -72,20 +72,21 @@ def read_raster_as_dask_array(file_path):
 
 # Function to save out results to .tif
 
-def save_raster(output_file, metadata_source, result_array):
+def save_raster(output_file, result_array, metadata_source, datatype=np.float32):
     '''
     Save new array to .tif with corresponding spatial metadata
 
     Arguments:
     output_file (str):      Filename for saving raster
     metadata_source (str):  Path to .tif with same spatial extent
+    datatype(dtye):         Datatype; default=np.float32
     result_array (ndarray): Data array to be written to file as .tif
 
     '''
     output_file = output_file
     with rasterio.open(metadata_source) as src:
         meta = src.meta.copy()
-        meta.update(dtype=np.float32, count=1, nodata=-9999, compress='LZW')
+        meta.update(dtype=datatype, count=1, nodata=-9999, compress='LZW')
 
         with rasterio.open(output_file, 'w', **meta) as dst:
             dst.write(result_array.compute(), 1)
@@ -117,7 +118,7 @@ for b in b_temp:
     median_array = da.mean(stacked_array, axis=0)
 
     output_file = os.path.join(path, f'median_{b}_days.tif')
-    save_raster(output_file, raster_files[0], median_array)
+    save_raster(output_file, median_array, raster_files[0])
 
 
 ########### Now find the time when the coherence drops below 0.3 ########
@@ -165,7 +166,7 @@ coherence_decay_norm = da.log2(coherence_decay)/np.log2(b_temp[-1])
 #coherence_decay = da.where(low_coh_mask, np.nan, drop_below_threshold)
 
 output_file = os.path.join(output_path, f'coherence_decay_lognorm_1_{track}.tif')
-save_raster(output_file, median_raster_files[0], coherence_decay_norm)
+save_raster(output_file, coherence_decay_norm, median_raster_files[0])
 
 ############# Combine visibility and coherence decay ################
 
@@ -205,7 +206,7 @@ gmsi_norm = (gmsi - min_value) / (max_value - min_value)
 # Output file path for the result
 output_file = os.path.join(output_path, 'gmsi_v2_lognorm_1_A177.tif')
 metadata_source = glob.glob(os.path.join(vis_path, '*.norm_scale_factor_masked.tif'))[0]
-save_raster(output_file, metadata_source, gmsi_norm)
+save_raster(output_file, gmsi_norm, metadata_source)
 
 
 
@@ -213,7 +214,7 @@ save_raster(output_file, metadata_source, gmsi_norm)
 
 gmsi_path = '/Volumes/Science/CCAMM/gmsi-v2'
 
-gmsi_files = glob.glob(os.path.join(gmsi_path, 'gmsi_v2_lognorm_1_*'))
+gmsi_files = glob.glob(os.path.join(gmsi_path, 'gmsi_v2_lognorm_1_*.tif'))
 
 
 rasters = [read_raster_as_dask_array(p) for p in gmsi_files]
@@ -221,8 +222,8 @@ rasters = [read_raster_as_dask_array(p) for p in gmsi_files]
 # Compute the maximum value across all rasters
 max_raster = da.nanmax(da.stack(rasters, axis=0), axis=0)
 
-out_fn = os.path.join(output_path, 'gmsi_v2_composite.tif')
-save_raster(out_fn, gmsi_files[0], max_raster)
+out_fn = os.path.join(output_path, 'gmsi_v2_composite_alltracks.tif')
+save_raster(out_fn, max_raster, gmsi_files[0])
 
 
 # Determine which raster had the maximum value
@@ -239,10 +240,67 @@ def get_index_with_max_value(rasters, max_raster):
 index_raster = get_index_with_max_value(rasters, max_raster)
 index_raster_masked = da.where(da.isnan(max_raster), np.nan, index_raster)
 
-out_fn = os.path.join(output_path, 'gmsi_v2_orbit_index.tif')
+out_fn = os.path.join(output_path, 'gmsi_v2_orbit_index_alltracks.tif')
 save_raster(out_fn, gmsi_files[0], index_raster_masked)
 
 
 del max_raster
 del index_raster
 gc.collect()
+
+
+############################## apply water mask to composite products ###############################
+# Currently done on pre-computed rasters (i.e. load in raster from file), but 
+# could eventually be included in the computation
+
+file_path = '/Volumes/Science/CCAMM/gmsi-v2'
+mask_path = '/Volumes/Science/CCAMM/gmsi-production/gmsi_swissTLM3D-2025-watermask.tif'
+
+m = read_raster_as_dask_array(mask_path)
+
+def apply_water_mask(file_path, filename, mask):
+    print(f' loading {filename} .................')
+    d = read_raster_as_dask_array(os.path.join(file_path, filename))
+    d_masked = da.where(mask==1, np.nan, d)
+    out_fn = os.path.join(file_path, f'{filename[:-4]}_masked.tif')
+    print(f'saving {filename[:-4]}_masked.tif .................')
+    save_raster(out_fn, d_masked, os.path.join(file_path, filename))
+    print(f'Applied water mask to {filename}')
+    del d
+
+
+apply_water_mask(file_path, 'gmsi_v2_composite_alltracks.tif', m)
+apply_water_mask(file_path, 'gmsi_v2_orbit_index_alltracks.tif', m)
+
+##################### combine gmsi with visibility and apply water mask ###########################
+# Currently done on pre-computed rasters (i.e. load in raster from file), but 
+# could eventually be included in the computation
+
+file_path = '/Volumes/Science/CCAMM/gmsi-v2'
+mask_path = '/Volumes/Science/CCAMM/gmsi-production/gmsi_swissTLM3D-2025-watermask.tif'
+
+m = read_raster_as_dask_array(mask_path)
+
+def apply_water_mask(file_path, filename, mask):
+    print(f' loading {filename} .................')
+    d = read_raster_as_dask_array(os.path.join(file_path, filename))
+    d_masked = da.where(mask==1, np.nan, d)
+    out_fn = os.path.join(file_path, f'{filename[:-4]}_masked.tif')
+    print(f'saving {filename[:-4]}_masked.tif .................')
+    save_raster(out_fn, os.path.join(file_path, filename), d_masked)
+    print(f'Applied water mask to {filename}')
+    del d
+
+
+#apply_water_mask(file_path, 'gmsi_v2_lognorm_1_A015.tif', m)
+#apply_water_mask(file_path, 'gmsi_v2_lognorm_1_A088.tif', m)
+#apply_water_mask(file_path, 'gmsi_v2_lognorm_1_A177.tif', m)
+#apply_water_mask(file_path, 'gmsi_v2_lognorm_1_D066.tif', m)
+#apply_water_mask(file_path, 'gmsi_v2_lognorm_1_D139.tif', m)
+#apply_water_mask(file_path, 'gmsi_v2_lognorm_1_D168.tif', m)
+
+
+
+#apply water mask to visibility 
+
+
