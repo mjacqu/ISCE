@@ -34,13 +34,14 @@ _: Look direction clockwise from NORTH (normal to γ)
 #look direction --> either from ifg or manual entry
 #load radar data
 ifg = interferogram.Interferogram(
-    #path ='/Volumes/Science/SpitzerStein/testdata/20151006_20151018'
-    path='/Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/testdata/20180716_20180728'
+    path = '/Volumes/Science/SpitzerStein/desc_139/20180608_20180620'
+    #path = '/Volumes/Science/SpitzerStein/asc_88/20180604_20180616'
+    #path='/Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/testdata/20180716_20180728'
     #path = '/Volumes/Science/ChamoliSAR/results/A56/20200802_20200814'
     #path='/scratch-third/mylenej/radar/SpitzerStein/results/asc_88/20151006_20151018'
 )
 
-look_direction = np.median(ifg.los[1])*-1
+look_direction = np.median(ifg.los[1])*-1 #from target to platform
 heading = look_direction + 90
 
 #Question: does the slight variation of look_direction matter?
@@ -100,7 +101,7 @@ slope_vectors = lp.pol2cart(aspect_rotated, vert_slope)
 
 p2t_3d = np.dstack([np.asarray(i) for i in p2t])
 slope_vec_3d = np.dstack([np.asarray(i) for i in slope_vectors])
-prop_def = np.sum(p2t_3d*slope_vec_3d, axis = 2) #just the dot-product of the two vectors as scaling factor as proposed by Handwerger #note from 10-2023: this is a dot-product but Al does not use a dot product...
+prop_def = np.abs(np.sum(p2t_3d*slope_vec_3d, axis = 2)) #just the dot-product of the two vectors as scaling factor as proposed by Handwerger #note from 10-2023: this is a dot-product but Al does not use a dot product...
 
 
 
@@ -118,7 +119,7 @@ ax.imshow(vis_reg, alpha=0.95, cmap=cmap_shadow, zorder=10)
 ax.imshow(lay1_reg, alpha=0.95, cmap=cmap_lay1, zorder=11)
 ax.imshow(lay2_reg, alpha=0.95, cmap=cmap_lay2, zorder=12)
 ax.imshow(fs, alpha=0.95, cmap=cmap_foreshortening, zorder=4)
-v_rel = ax.imshow(prop_def, alpha=0.8, zorder=1, cmap='seismic')
+v_rel = ax.imshow(prop_def, alpha=0.8, zorder=1, cmap='Blues')
 f.colorbar(v_rel)
 #plt.imshow(layover, alpha=0.95)
 f.show()
@@ -141,7 +142,7 @@ meta = {
     'transform': dem.transform  # Define the transformation
 }
 
-with rasterio.open('output.tif', 'w', **meta) as dst:
+with rasterio.open('Users/mistral/Documents/ETHZ/Science/CCAMM/InSAR/Kandersteg/def_frac_descending139.tif', 'w', **meta) as dst:
     dst.write(prop_def, 1) 
 
 
