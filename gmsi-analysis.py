@@ -36,8 +36,8 @@ vis_path = '/Volumes/Science/CCAMM/gmsi-production/visibility'
 vis_files = glob.glob(os.path.join(vis_path, '*/*.norm_scale_factor_masked.tif'))
 ls_files = glob.glob(os.path.join(vis_path, '*/*.lsmap.tif'))
 
-gmsi_path = '/Volumes/Science/CCAMM/gmsi-v1'
-gmsi_files = glob.glob(os.path.join(gmsi_path, 'gmsi_norm_*.tif'))
+gmsi_path = '/Volumes/Science/CCAMM/gmsi-v2'
+gmsi_files = glob.glob(os.path.join(gmsi_path, 'gmsi_v2_lognorm_1_*.tif'))
 tracks = ['A-15', 'A-88', 'D-66', 'D-139', 'D168']
 
 # load visbility
@@ -65,14 +65,14 @@ gmsi = read_raster_as_dask_array('/Volumes/Science/CCAMM/gmsi-v1/gmsi_composite.
 ############# set thresholds ###################
 
 vis_threshold = 0.25
-gmsi_good = 0.4
-gmsi_excellent = 0.6
+gmsi_good = 0.5 # gmsi v2 (0.4 - gsmi v1)
+gmsi_excellent = 0.75 # gmsi v2 (0.6 )
 
-################ alpine area ###############
+################ alpine area (1500m) ###############
 elev_threshold = 1500
 alpine_mask = (dem > elev_threshold) & (data_coverage == 1) #anything above subalpine
 pixel_area = 10*10
-alpine_area = (alpine_mask.sum()*pixel_area).compute() / 1e6 #roughly 28 500 km2
+alpine_area = (alpine_mask.sum()*pixel_area).compute() / 1e6 # 15 362 km2
 
 ################################ first look at full picture ####################
 
