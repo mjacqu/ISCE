@@ -8,9 +8,7 @@ from datetime import datetime
 import re
 import rasterio
 import dask.array as da
-#import xarray as xr
-#from rasterio.warp import calculate_default_transform, reproject, Resampling
-#import pyproj
+
 
 ################# functions ##############################
 
@@ -160,10 +158,7 @@ coherence_decay = da.where(coverage_mask, np.nan, drop_below_threshold)
 #log-normalize the coherence_decay
 coherence_decay_norm = da.log2(coherence_decay)/np.log2(b_temp[-1])
 
-# mask areas in drop_below_threshold where 6-day coherence < 0.3
-# low_coh_mask = median_arrays[0] < 0.3 
-# apply mask to whole stack:
-#coherence_decay = da.where(low_coh_mask, np.nan, drop_below_threshold)
+
 
 output_file = os.path.join(output_path, f'coherence_decay_lognorm_1_{track}.tif')
 save_raster(output_file, coherence_decay_norm, median_raster_files[0])
@@ -178,20 +173,6 @@ visibility_neg_inf = da.where(visibility < -1000, np.nan, visibility_zeros)
 visibility_array = da.where(visibility_zeros>10e3, np.nan, visibility_neg_inf)
 
 
-
-# mask visibility based on coherence
-# mask areas in drop_below_threshold where 6-day coherence < 0.3
-#low_coh_mask = median_arrays[0] < 0.3
-
-# apply mask to whole stack:
-#visibility_masked = da.where(low_coh_mask, np.nan, visibility_array)
-
-# load coherence decay
-#coherence_decay = read_raster_as_dask_array(os.path.join(path, 'coherence_decay_lognorm_A088.tif'))
-
-# mask of all areas in the coherence_decay that are nan in the visibility file:
-# not needed?????
-#coherence_decay_masked = da.where(da.isnan(visibility_array), np.nan, coherence_decay)
 
 # multiply and normalize
 gmsi = coherence_decay_norm * visibility_array
@@ -258,19 +239,19 @@ mask_path = '/Volumes/Science/CCAMM/gmsi-production/gmsi_swissTLM3D-2025-waterma
 
 m = read_raster_as_dask_array(mask_path)
 
-def apply_water_mask(file_path, filename, mask):
+def apply_water_mask(file_path, filename, mask, datatype=np.float32):
     print(f' loading {filename} .................')
     d = read_raster_as_dask_array(os.path.join(file_path, filename))
     d_masked = da.where(mask==1, np.nan, d)
     out_fn = os.path.join(file_path, f'{filename[:-4]}_masked.tif')
     print(f'saving {filename[:-4]}_masked.tif .................')
-    save_raster(out_fn, d_masked, os.path.join(file_path, filename))
+    save_raster(out_fn, d_masked, os.path.join(file_path, filename), datatype)
     print(f'Applied water mask to {filename}')
     del d
 
 
-apply_water_mask(file_path, 'gmsi_v2_composite_alltracks.tif', m)
-apply_water_mask(file_path, 'gmsi_v2_orbit_index_alltracks.tif', m)
+#apply_water_mask(file_path, 'gmsi_v2_composite_alltracks.tif', m)
+apply_water_mask(file_path, 'gmsi_v2_orbit_index_alltracks.tif', m, datatype='int16')
 
 ##################### combine gmsi with visibility and apply water mask ###########################
 # Currently done on pre-computed rasters (i.e. load in raster from file), but 
